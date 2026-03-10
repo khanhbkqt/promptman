@@ -6,344 +6,254 @@ description: End-to-end workflow for executing a Story or Task from start to fin
 - **project_id** — The VibePM project ID or code
 - **issue_id** — The VibePM issue ID or code (Story or Task)
 
-## Tool Discovery
-
-If unsure about a tool's available commands or parameters, use the built-in help:
-
-- \\\`<toolname>(method: "help")\\\` — list all available commands
-- \\\`<toolname>(method: "help", command: "<name>")\\\` — show parameters for a specific command
-
-This works for all tools: \\\`issues\\\`, \\\`docs\\\`, \\\`projects\\\`, \\\`search\\\`, \\\`reports\\\`, \\\`notification\\\`.
-
 ---
 
 ## Step 1 — Gather Issue Context
 
-**Goal:** Build a complete picture of the task before planning anything.
+**Goal:** Build a complete picture before planning anything.
 
-1. Call \\\`projects(method: "get", projectId: "{project_id}")\\\` to retrieve:
-   - Project statuses → note the "In Progress" and "In Review" status IDs
-   - Project code → for branch naming
+1. \\\`projects(method: "get", projectId: "{project_id}")\\\` → get project statuses (note "In Progress", "In Review" IDs) and project code.
 
-2. Call \\\`issues(method: "get", projectId: "{project_id}", issueId: "{issue_id}")\\\` to retrieve:
-   - Issue details: title, type, description, priority, current status
-   - Parent issue (Story or Epic) — read its **full description**
-   - Sibling issues (other Tasks under the same parent)
-   - All existing comments — scan for unaddressed feedback or blockers
+2. \\\`issues(method: "get", projectId: "{project_id}", issueId: "{issue_id}")\\\` → get issue details, parent issue (read its **full description**), sibling issues, all comments.
 
-3. If the parent is a **Story**, extract from its description:
-   - **Acceptance criteria** → these define "done"
-   - **Suggested task breakdown** → confirm your task matches
-   - **Technical notes** → implementation guidance
-   - **Dependencies** → are prerequisite Stories/Tasks complete?
-   - **Out of scope** → what NOT to do
+3. If parent is a **Story**, extract: acceptance criteria, task breakdown, technical notes, dependencies, out-of-scope items.
 
-4. If the issue itself is a **Story with no child Tasks**:
-   - Read the Story's suggested task breakdown
-   - Create Tasks under this Story using \\\`issues(method: "create", ...)\\\`
-   - Then restart this workflow on the first Task
+4. If the issue is a **Story with no child Tasks** → run the **Story Analysis Sub-flow** (see below), then restart this workflow on the first created Task.
 
-5. Check notifications for relevant updates:
-   - Call \\\`notification(method: "list", isRead: false, limit: 10)\\\`
-   - Look for comments, status changes, or review feedback on this task
-   - Mark processed: \\\`notification(method: "read", notificationId: "<id>")\\\`
+5. \\\`notification(method: "list", isRead: false, limit: 10)\\\` → check for unaddressed feedback. Mark processed ones as read.
 
-6. Search for related issues and documents:
-   - Call \\\`search(method: "query", projectId: "{project_id}", q: "<relevant keywords>")\\\`
-   - Check if linked documents exist for the issue
-
-**Output of this step:** A mental model of what needs to be built, the acceptance criteria, and all relevant context.
+6. \\\`search(method: "query", projectId: "{project_id}", q: "<keywords>")\\\` → find related issues and documents.
 
 ---
 
 ## Step 2 — Check Blockers
 
-**Goal:** Confirm the task can proceed. If blocked, STOP immediately.
+**Goal:** If blocked, STOP immediately.
 
-7. Review sibling issues (from Step 1):
-   - Are there Tasks that yours depends on that are still incomplete?
-   - Are there blocking links on the issue?
+7. Check sibling issues for incomplete dependencies and blocking links.
 
-8. Review comments for unresolved blockers or open questions.
-
-9. Call \\\`issues(method: "list", projectId: "{project_id}", mine: true)\\\` to check your current workload.
+8. Check comments for unresolved blockers or open questions.
 
 **If blocked:**
-   a. Post a comment on the issue explaining the blocker:
-      \\\`issues(method: "comment", projectId: "{project_id}", issueId: "{issue_id}", content: "⛔ Blocked by {dependency} — {reason}")\\\`
-   b. **🛑 STOP — Inform the human:**
-      \\\`\\\`\\\`
-      ⛔ Task {issueCode} is BLOCKED.
-      Reason: {dependency} is not yet complete.
-      Action needed: {what needs to happen before this can proceed}
-      \\\`\\\`\\\`
-   c. Do NOT proceed to Step 3. Wait for human direction.
+- Post blocker comment: \\\`issues(method: "comment", ..., content: "⛔ Blocked by {dep} — {reason}")\\\`
+- **🛑 STOP** — inform human with blocker details. Do NOT proceed.
 
-**If not blocked:** Continue to Step 3.
+**If clear:** Continue to Step 3.
 
 ---
 
-## Step 3 — Gather Guidelines Documents
+## Step 3 — Gather Guidelines
 
-**Goal:** Load team coding standards so the execution plan and implementation align with project conventions.
+**Goal:** Load team coding standards before planning.
 
-10. Call \\\`docs(method: "list", projectId: "{project_id}")\\\` and scan for:
-    - Documents titled "Coding Guidelines", "PR Checklist", or similar
-    - Documents in a "Guidelines" folder or category
+9. \\\`docs(method: "list", projectId: "{project_id}")\\\` → scan for "Coding Guidelines", "PR Checklist", or similar docs.
 
-11. For each guidelines doc found:
-    - Call \\\`docs(method: "get", projectId: "{project_id}", documentId: "<doc-id>")\\\`
-    - Read and memorize every rule — you MUST follow all of them
+10. Read each guidelines doc found. You MUST follow all rules.
 
-12. If **no guidelines doc exists**: Note it — you'll skip the guidelines compliance check later.
-
-**Output of this step:** A list of team rules and conventions to follow during implementation.
+11. If no guidelines doc exists → note it; skip guidelines compliance check later.
 
 ---
 
 ## Step 4 — Create Execution Plan
 
-**Goal:** Present a clear, reviewable plan to the human BEFORE writing any code.
+**Goal:** Present a reviewable plan BEFORE writing code.
 
-13. Synthesize everything from Steps 1–3 into a structured execution plan:
+12. Synthesize Steps 1–3 into:
 
 \\\`\\\`\\\`markdown
 ## 🗺️ Execution Plan: {issueCode} — {title}
 
-**What I'll implement:** <1-2 sentence summary>
-
-**Acceptance criteria I'll satisfy:**
-- [ ] <criterion 1>
-- [ ] <criterion 2>
-
-**Technical approach:**
-- <How you plan to implement — architecture, patterns, key decisions>
-- <Why this approach was chosen over alternatives>
-
-**Files I expect to modify:**
-- <file/module list with brief description of changes>
-
+**What I'll implement:** <summary>
+**Acceptance criteria:** <checklist>
+**Technical approach:** <architecture, patterns, key decisions>
+**Files to modify:** <list>
 **Branch:** feat/{issue-code}-{slug}
 **Dependencies:** {resolved / none}
-**Guidelines compliance:** {list key guidelines that apply}
-**Estimated scope:** {small / medium / large}
-
-**Risks & edge cases:**
-- <anything that could go wrong or needs special attention>
+**Risks:** <edge cases, concerns>
 \\\`\\\`\\\`
 
-14. Present this plan to the human and **⏸️ WAIT for approval**.
+13. Present plan and **⏸️ WAIT for approval**.
 
 ---
 
 ## Step 5 — Iterate Plan Until Approved
 
-**Goal:** Incorporate human feedback until the plan is approved.
+14. If human requests changes → update and re-present. Repeat until approved.
 
-15. If the human requests changes:
-    a. Update the plan based on feedback
-    b. Re-present the updated plan
-    c. Repeat until the human explicitly approves
+15. If human has questions → answer with references to acceptance criteria and context.
 
-16. If the human has questions:
-    a. Answer them with references to the acceptance criteria and technical context
-    b. Do NOT proceed to implementation until questions are resolved
-
-**Gate:** Do NOT proceed to Step 6 until the human says "approved", "looks good", "go ahead", or similar affirmative.
+**Gate:** Do NOT proceed until human explicitly approves.
 
 ---
 
 ## Step 6 — Execute the Plan
 
-**Goal:** Implement the approved plan.
+16. Set status and assign: \\\`issues(method: "update", ..., statusName: "In Progress", assignToMe: true)\\\`
 
-17. Set status and assign:
-    - Call \\\`issues(method: "update", projectId: "{project_id}", issueId: "{issue_id}", statusName: "In Progress", assignToMe: true)\\\`
+17. Create branch: \\\`feat/{issue-code}-short-slug\\\`
 
-18. Create a feature branch:
-    - Naming: \\\`feat/{issue-code}-short-slug\\\` (e.g. \\\`feat/PRJ-42-search-api\\\`)
+18. Implement following the approved plan. Make atomic commits: \\\`feat({issue-code}): description\\\`
 
-19. Implement the changes following the approved plan:
-    - Follow the team guidelines (from Step 3)
-    - Reference acceptance criteria continuously
-    - Make atomic commits with correct format: \\\`feat({issue-code}): description\\\`
-
-20. During implementation, if you discover:
-    - **Unexpected complexity** → Inform human, update the plan, wait for re-approval
-    - **A blocker** → STOP, post blocker comment, inform human (same as Step 2)
-    - **Scope creep** → Check "Out of scope" from the Story; ask human if unsure
+19. If unexpected complexity/blocker/scope creep discovered → inform human, update plan, wait for re-approval.
 
 ---
 
 ## Step 7 — Verify Checklist
 
-**Goal:** Confirm everything meets quality standards. Loop until ALL items pass.
+**Goal:** Loop until ALL items pass ✅.
 
-21. **Acceptance Criteria Check:**
+20. **Acceptance Criteria** — verify each criterion from parent Story with evidence.
 
-    For each criterion from the parent Story:
-    | Criterion | Met? | Evidence |
-    |-----------|------|----------|
-    | <criterion 1> | ✅/❌ | <how you verified> |
+21. **Tests** — run test suite, fix failures related to your changes.
 
-    - If ANY criterion is NOT met:
-      a. Can you fix it now? → Fix it, re-verify.
-      b. Out of scope or blocked? → Note it for the summary.
+22. **Code Quality** — fix lint errors, resolve critical TODOs.
 
-22. **Run Tests:**
-    - Execute the project's test suite
-    - Record: pass count, fail count, coverage
-    - If tests fail: fix if related to your changes; note if pre-existing
+23. **Guidelines Compliance** (if doc exists) — check each guideline item.
 
-23. **Code Quality:**
-    - Lint errors? Fix them.
-    - TODO comments for critical functionality? Resolve them.
+24. **Git Conventions:**
+    - Branch: \\\`feat/{issue-code}-*\\\`
+    - All commits reference issue code: \\\`feat({issue-code}): ...\\\`
+    - No untracked/unstaged changes
 
-24. **Guidelines Compliance** (if guidelines doc exists):
-
-    | Guideline | Status | Notes |
-    |-----------|--------|-------|
-    | <item 1> | ✅/❌ | <detail> |
-
-    - If any item fails → fix it, then re-run this checklist.
-
-25. **Git Convention Verification:**
-    - Branch name follows: \\\`feat/{issue-code}-*\\\`
-    - ALL commits reference the issue code: \\\`feat({issue-code}): description\\\`
-    - No untracked or unstaged changes remain
-    - Use \\\`fix({issue-code}): ...\\\` for bug fixes within the task
-    - Use \\\`refactor({issue-code}): ...\\\` for refactoring within the task
-
-26. **Repeat Steps 21–25** until every item shows ✅. Do NOT proceed with any ❌.
+25. **Repeat 20–24** until every item ✅. Do NOT proceed with any ❌.
 
 ---
 
 ## Step 8 — Commit & Document
 
-**Goal:** Finalize the code and post a structured implementation summary.
+26. Ensure all changes committed with proper format.
 
-27. Ensure all changes are committed with proper format:
-    - \\\`feat({issue-code}): <description>\\\`
-    - Every commit MUST reference the issue code — no exceptions
+27. Post implementation summary comment via \\\`issues(method: "comment", ...)\\\`:
 
-28. Post an implementation summary comment:
+\\\`\\\`\\\`markdown
+## ✅ Implementation Complete
 
-    Call \\\`issues(method: "comment", projectId: "{project_id}", issueId: "{issue_id}", content: "...")\\\` with:
+**Issue:** {issueCode} — {title}
+**Branch:** feat/{issue-code}-{slug}
 
-    \\\`\\\`\\\`markdown
-    ## ✅ Implementation Complete
+### Changes Made
+- <files and modules changed, architecture decisions>
 
-    **Issue:** {issueCode} — {title}
-    **Branch:** feat/{issue-code}-{slug}
+### Acceptance Criteria
+- [x] <criterion> — {evidence}
 
-    ### Changes Made
-    - <What was implemented — be specific about files and modules>
-    - <Architecture decisions made and why>
+### Tests
+- **Status:** All passing / {N} pre-existing failures
+- **New tests:** {list or "none"}
 
-    ### Acceptance Criteria
-    - [x] <criterion 1> — {brief evidence}
-    - [x] <criterion 2> — {brief evidence}
+### Commits
+- \\\\\\\`{hash}\\\\\\\` — {message}
 
-    ### Tests
-    - **Status:** All passing / {N} failures (pre-existing)
-    - **New tests added:** {list or "none"}
+### Known Limitations
+- {edge cases not covered, or "None"}
+\\\`\\\`\\\`
 
-    ### Commits
-    - \\\\\\\`{hash}\\\\\\\` — {message}
+28. Update linked documents if needed: \\\`docs(method: "update", ...)\\\`
 
-    ### Known Limitations
-    - {Any edge cases not covered, or "None"}
-
-    ### Documentation Impact
-    - {List linked/updated documents, or "None"}
-    \\\`\\\`\\\`
-
-29. Check if linked documents need updating:
-    - If yes → update them using \\\`docs(method: "update", ...)\\\`
-
-30. Move status to "In Review":
-    - Call \\\`issues(method: "update", projectId: "{project_id}", issueId: "{issue_id}", statusName: "In Review")\\\`
+29. Move to "In Review": \\\`issues(method: "update", ..., statusName: "In Review")\\\`
 
 ---
 
 ## Step 9 — Summarize to Human
 
-**Goal:** Present a clear completion summary.
-
-31. Present the following summary:
+30. Present:
 
 \\\`\\\`\\\`
-✅ Task {issueCode} — {title} — COMPLETE.
+✅ {issueCode} — {title} — COMPLETE.
 🌿 Branch: feat/{issue-code}-{slug}
-📋 Implementation summary posted as comment.
-📄 Documentation impact: {updated X / none}.
-🔍 Status: Moved to In Review.
-
-Acceptance criteria: {N}/{N} met.
-Tests: All passing.
-Guidelines: All compliant.
+📋 Summary posted. Status: In Review.
+Criteria: {N}/{N} met. Tests: passing. Guidelines: compliant.
 \\\`\\\`\\\`
 
 ---
 
 ## Step 10 — Suggest Next Steps
 
-**Goal:** Guide the human on what to do next.
-
-32. Based on the project state, suggest relevant next actions:
+31. Suggest:
 
 \\\`\\\`\\\`
-🔜 Suggested next steps:
-   → Human reviewer: assess the implementation and approve/reject
-   → If documentation needs updating: use the **sync-docs** workflow
-   → If sibling Tasks remain under the Story: run **execute-task** on the next one
-   → If all Tasks under the Story are Done: the Story can be promoted to Done
+🔜 Next steps:
+   → Reviewer: assess and approve/reject
+   → If docs need updating: use **sync-docs** workflow
+   → If sibling Tasks remain: run **execute-task** on the next one
+   → If all Tasks Done: Story can be promoted to Done
 \\\`\\\`\\\`
 
 ---
 
 ## Handling Review Feedback (Re-entry)
 
-If the human or a reviewer **rejects** the task or leaves feedback comments
-after Step 9, re-enter this workflow at this section:
+If the task is **rejected** or feedback is posted after Step 9:
 
-33. Call \\\`issues(method: "get", ...)\\\` to refresh comments and status.
+32. Refresh comments via \\\`issues(method: "get", ...)\\\`.
 
-34. Find the **most recent review comment** (look for "## Review" or feedback markers).
+33. Parse feedback into items:
 
-35. Parse feedback into actionable items:
+    | # | Feedback | Category | Status |
+    |---|---------|----------|--------|
+    | 1 | <issue> | Must Fix | ⬜ |
+    | 2 | <suggestion> | Should Fix | ⬜ |
 
-    | # | Feedback Item | Category | Status |
-    |---|--------------|----------|--------|
-    | 1 | <specific issue> | Must Fix | ⬜ Pending |
-    | 2 | <specific issue> | Should Fix | ⬜ Pending |
+    Categories: **Must Fix** (blocking), **Should Fix** (recommended), **Note** (informational).
 
-    **Categories:**
-    - **Must Fix** — blocking approval, MUST be addressed
-    - **Should Fix** — recommended, not blocking
-    - **Note** — informational, no action needed
+34. If feedback unclear → post clarification, **🛑 STOP**, wait for response.
 
-36. If any feedback is unclear or you disagree:
-    - Post a clarification comment
-    - **🛑 STOP** and wait for response
+35. Address items: Must Fix → fix it. Should Fix → fix or note why deferred. Do NOT change anything beyond what was requested.
 
-37. Address each item:
-    - **Must Fix** → make the change, mark as addressed
-    - **Should Fix** → fix if reasonable; if not, note why in the rework comment
-    - Do NOT refactor or change anything beyond what was requested
+36. **Re-run Step 7** to verify nothing is broken.
 
-38. **Re-run Step 7 (Verify Checklist)** — ensure nothing is broken.
+37. Post rework comment:
 
-39. Post a rework summary comment:
+\\\`\\\`\\\`markdown
+## 🔄 Rework Complete — Round {N}
 
-    \\\`\\\`\\\`markdown
-    ## 🔄 Rework Complete
+### Addressed Feedback
+| # | Feedback | Resolution |
+|---|---------|------------|
+| 1 | <feedback> | ✅ <fix> |
+| 2 | <feedback> | ⏭️ Deferred — <reason> |
 
-    **Issue:** {issueCode} — {title}
-    **Review round:** {N}
+### Tests: All passing
+### Commits: \\\\\\\`{hash}\\\\\\\` — fix({code}): <msg>
+\\\`\\\`\\\`
 
-    ### Addressed Feedback
-    | # | Feedback | Resolution |
-    |---|---------|------------|
-    | 1 | <original feedback> | ✅ <what was changed> |
-    
+38. Move back to "In Review". Summarize to human.
+
+---
+
+## Story Analysis Sub-flow
+
+When Step 1 item 4 triggers (Story with no child Tasks):
+
+S1. Read project docs — \\\`docs(method: "list", ...)\\\` → read architecture, API, and data model docs. Read any docs linked to the Story or its Epic.
+
+S2. Technical analysis — for each piece of work: affected files/modules, approach, risks, cross-cutting concerns (migrations, API changes, config, tests, security).
+
+S3. Task sizing — 2–4 Tasks per Story. Each should be a meaningful unit completable in one session.
+   ❌ Anti-patterns: one task per file, "write tests" as separate task, "research" as task, one giant task.
+
+S4. Post implementation plan as comment on the Story. **⏸️ WAIT for human approval.**
+
+S5. After approval, create Tasks: \\\`issues(method: "create", ..., type: "TASK", statusName: "Backlog")\\\`
+
+S6. Restart this workflow on the first Task.
+
+---
+
+## Git Rules
+- **Branch:** \\\`feat/{issue-code}-short-slug\\\`
+- **Commits:** \\\`feat({issue-code}): description\\\` — ALL commits MUST reference issue code
+- **Bug fixes:** \\\`fix({issue-code}): ...\\\` | **Refactors:** \\\`refactor({issue-code}): ...\\\`
+
+## Constraints
+- 🚫 NEVER code without human-approved plan
+- 🚫 NEVER skip blocker checks
+- 🚫 NEVER proceed past verify checklist with any ❌
+- 🚫 NEVER promote to "Done" — only humans can
+- 🚫 NEVER commit without issue code reference
+- 🚫 NEVER ignore review feedback
+- ✅ ALWAYS read parent Story acceptance criteria before planning
+- ✅ ALWAYS load guidelines before implementation
+- ✅ ALWAYS wait for plan approval before coding
+- ✅ ALWAYS verify all checklist items before committing`,
+};

@@ -21,9 +21,43 @@ func (s *Service) List() ([]EnvSummary, error) {
 	return s.repo.List()
 }
 
-// Get loads a single environment by name, including all variables and secrets.
+// Get loads a single environment by name, merges .secrets.yaml overrides,
+// resolves $ENV{} references, and masks all secret values as "***".
+// Use this for API responses where secrets must not leak.
 func (s *Service) Get(name string) (*Environment, error) {
-	return s.repo.Get(name)
+	env, err := s.repo.GetWithSecrets(name)
+	if err != nil {
+		return nil, err
+	}
+
+	// Resolve $ENV{} references in secrets.
+	resolved, err := ResolveSecrets(env.Secrets)
+	if err != nil {
+		return nil, err
+	}
+
+	// Mask all resolved secret values for safe output.
+	env.Secrets = MaskSecrets(resolved)
+	return env, nil
+}
+
+// GetRaw loads a single environment by name, merges .secrets.yaml overrides,
+// and resolves $ENV{} references — returning the actual secret values.
+// This is for internal use only (e.g., by the M3 request execution engine).
+// GetRaw MUST NOT be exposed via the REST API.
+func (s *Service) GetRaw(name string) (*Environment, error) {
+	env, err := s.repo.GetWithSecrets(name)
+	if err != nil {
+		return nil, err
+	}
+
+	resolved, err := ResolveSecrets(env.Secrets)
+	if err != nil {
+		return nil, err
+	}
+
+	env.Secrets = resolved
+	return env, nil
 }
 
 // Create validates the input, checks for duplicates, persists the environment,
@@ -84,4 +118,27 @@ func (s *Service) Update(name string, input *UpdateEnvInput) (*Environment, erro
 // Delete removes an environment by name.
 func (s *Service) Delete(name string) error {
 	return s.repo.Delete(name)
+}
+
+// SetActive sets the active environment to the given name.
+// It validates that the environment exists before persisting the choice.
+func (s *Service) SetActive(name string) error {
+	// Verify the environment exists.
+	if _, err := s.repo.Get(name); err != nil {
+		return err
+	}
+	return s.repo.WriteActiveEnv(name)
+}
+
+// GetActive returns the name of the currently active environment.
+// Returns ErrEnvNotSet if no active environment has been configured.
+func (s *Service) GetActive() (string, error) {
+	name, err := s.repo.ReadActiveEnv()
+	if err != nil {
+		return "", fmt.Errorf("get active environment: %w", err)
+	}
+	if name == "" {
+		return "", ErrEnvNotSet
+	}
+	return name, nil
 }

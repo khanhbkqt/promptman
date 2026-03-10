@@ -11,6 +11,9 @@ import (
 	"github.com/khanhnguyen/promptman/pkg/fsutil"
 )
 
+// activeEnvFile is the filename used to persist the active environment name.
+const activeEnvFile = ".active"
+
 // validName matches safe environment names: lowercase alphanumeric and hyphens.
 // This prevents path-traversal attacks and enforces kebab-case naming.
 var validName = regexp.MustCompile(`^[a-z0-9-]+$`)
@@ -23,12 +26,24 @@ type Repository interface {
 	// Get loads a single environment by name (filename without extension).
 	Get(name string) (*Environment, error)
 
+	// GetWithSecrets loads an environment and merges the corresponding .secrets.yaml
+	// file if it exists. Variables from .secrets.yaml override same-name variables
+	// in the base environment. Missing .secrets.yaml is not an error.
+	GetWithSecrets(name string) (*Environment, error)
+
 	// Save persists an environment to disk.
 	// The name determines the filename: <name>.yaml.
 	Save(name string, env *Environment) error
 
 	// Delete removes the environment YAML file (and secrets file if present).
 	Delete(name string) error
+
+	// ReadActiveEnv reads the persisted active environment name.
+	// Returns an empty string if no active environment is set.
+	ReadActiveEnv() (string, error)
+
+	// WriteActiveEnv persists the active environment name to disk.
+	WriteActiveEnv(name string) error
 }
 
 // FileRepository implements Repository using the local filesystem.
@@ -99,7 +114,7 @@ func (r *FileRepository) List() ([]EnvSummary, error) {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".yaml") {
 			continue
 		}
-		// Skip secrets files — they are merged in a later Story.
+		// Skip secrets files — they are merged via GetWithSecrets.
 		if strings.HasSuffix(e.Name(), ".secrets.yaml") {
 			continue
 		}
@@ -146,6 +161,55 @@ func (r *FileRepository) Get(name string) (*Environment, error) {
 	return &env, nil
 }
 
+// GetWithSecrets loads an environment and merges the corresponding .secrets.yaml
+// file if it exists. Variables from the secrets file override same-name secrets
+// in the base environment. If no .secrets.yaml exists, the base environment
+// is returned unchanged.
+func (r *FileRepository) GetWithSecrets(name string) (*Environment, error) {
+	env, err := r.Get(name)
+	if err != nil {
+		return nil, err
+	}
+
+	dir, err := r.environmentsDir()
+	if err != nil {
+		return nil, err
+	}
+
+	secretsPath := filepath.Join(dir, name+".secrets.yaml")
+
+	var secretsFile Environment
+	if err := fsutil.ReadYAML(secretsPath, &secretsFile); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			// No secrets file — return the base environment as-is.
+			return env, nil
+		}
+		return nil, ErrInvalidYAML.Wrapf("load secrets file for %q: %v", name, err)
+	}
+
+	// Merge secrets: values from .secrets.yaml override base secrets.
+	if len(secretsFile.Secrets) > 0 {
+		if env.Secrets == nil {
+			env.Secrets = make(map[string]string)
+		}
+		for k, v := range secretsFile.Secrets {
+			env.Secrets[k] = v
+		}
+	}
+
+	// Merge variables: values from .secrets.yaml override base variables.
+	if len(secretsFile.Variables) > 0 {
+		if env.Variables == nil {
+			env.Variables = make(map[string]any)
+		}
+		for k, v := range secretsFile.Variables {
+			env.Variables[k] = v
+		}
+	}
+
+	return env, nil
+}
+
 // Save persists an environment to disk.
 func (r *FileRepository) Save(name string, env *Environment) error {
 	path, err := r.filePath(name)
@@ -180,6 +244,40 @@ func (r *FileRepository) Delete(name string) error {
 	secretsPath := filepath.Join(dir, name+".secrets.yaml")
 	// Ignore errors — the secrets file may not exist.
 	os.Remove(secretsPath)
+
+	return nil
+}
+
+// ReadActiveEnv reads the persisted active environment name from the .active file.
+// Returns an empty string if the file does not exist or is empty.
+func (r *FileRepository) ReadActiveEnv() (string, error) {
+	dir, err := r.environmentsDir()
+	if err != nil {
+		return "", err
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, activeEnvFile))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("read active env: %w", err)
+	}
+
+	return strings.TrimSpace(string(data)), nil
+}
+
+// WriteActiveEnv persists the active environment name to the .active file.
+func (r *FileRepository) WriteActiveEnv(name string) error {
+	dir, err := r.environmentsDir()
+	if err != nil {
+		return err
+	}
+
+	path := filepath.Join(dir, activeEnvFile)
+	if err := os.WriteFile(path, []byte(name+"\n"), 0o644); err != nil {
+		return fmt.Errorf("write active env: %w", err)
+	}
 
 	return nil
 }

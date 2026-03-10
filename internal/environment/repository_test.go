@@ -453,3 +453,141 @@ func TestFileRepository_YAMLRoundTrip(t *testing.T) {
 		t.Errorf("apiKey = %q, want $ENV{API_KEY}", loaded.Secrets["apiKey"])
 	}
 }
+
+// --- GetWithSecrets ---
+
+func TestFileRepository_GetWithSecrets_MergeSecretsFile(t *testing.T) {
+	dir := t.TempDir()
+	repo := NewFileRepository(dir)
+
+	// Create base environment
+	base := &Environment{
+		Name:      "Development",
+		Variables: map[string]any{"host": "localhost"},
+		Secrets:   map[string]string{"apiKey": "$ENV{API_KEY}", "dbPass": "base-pass"},
+	}
+	if err := repo.Save("dev", base); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	// Create secrets file with overrides
+	secretsYAML := "secrets:\n  apiKey: real-key-from-secrets-file\n  newSecret: brand-new\nvariables:\n  host: overridden-host\n  extraVar: extra-value\n"
+	secretsPath := filepath.Join(dir, "dev.secrets.yaml")
+	if err := os.WriteFile(secretsPath, []byte(secretsYAML), 0644); err != nil {
+		t.Fatalf("write secrets: %v", err)
+	}
+
+	got, err := repo.GetWithSecrets("dev")
+	if err != nil {
+		t.Fatalf("GetWithSecrets() error: %v", err)
+	}
+
+	// Secrets from .secrets.yaml should override base
+	if got.Secrets["apiKey"] != "real-key-from-secrets-file" {
+		t.Errorf("apiKey = %q, want %q", got.Secrets["apiKey"], "real-key-from-secrets-file")
+	}
+	// New secret from .secrets.yaml should be added
+	if got.Secrets["newSecret"] != "brand-new" {
+		t.Errorf("newSecret = %q, want %q", got.Secrets["newSecret"], "brand-new")
+	}
+	// Non-overridden secret should remain
+	if got.Secrets["dbPass"] != "base-pass" {
+		t.Errorf("dbPass = %q, want %q", got.Secrets["dbPass"], "base-pass")
+	}
+
+	// Variables from .secrets.yaml should override base
+	if got.Variables["host"] != "overridden-host" {
+		t.Errorf("host = %v, want %q", got.Variables["host"], "overridden-host")
+	}
+	// New variable from .secrets.yaml should be added
+	if got.Variables["extraVar"] != "extra-value" {
+		t.Errorf("extraVar = %v, want %q", got.Variables["extraVar"], "extra-value")
+	}
+}
+
+func TestFileRepository_GetWithSecrets_NoSecretsFile(t *testing.T) {
+	dir := t.TempDir()
+	repo := NewFileRepository(dir)
+
+	env := &Environment{
+		Name:    "Development",
+		Secrets: map[string]string{"apiKey": "$ENV{API_KEY}"},
+	}
+	if err := repo.Save("dev", env); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	got, err := repo.GetWithSecrets("dev")
+	if err != nil {
+		t.Fatalf("GetWithSecrets() error: %v", err)
+	}
+	if got.Secrets["apiKey"] != "$ENV{API_KEY}" {
+		t.Errorf("apiKey = %q, want %q (unchanged)", got.Secrets["apiKey"], "$ENV{API_KEY}")
+	}
+}
+
+func TestFileRepository_GetWithSecrets_NotFound(t *testing.T) {
+	dir := t.TempDir()
+	repo := NewFileRepository(dir)
+
+	_, err := repo.GetWithSecrets("nonexistent")
+	if err == nil {
+		t.Fatal("expected error for nonexistent environment")
+	}
+	if !IsDomainError(err, envelope.CodeEnvNotFound) {
+		t.Errorf("expected ENV_NOT_FOUND, got: %v", err)
+	}
+}
+
+func TestFileRepository_GetWithSecrets_InvalidSecretsYAML(t *testing.T) {
+	dir := t.TempDir()
+	repo := NewFileRepository(dir)
+
+	env := &Environment{Name: "Development"}
+	if err := repo.Save("dev", env); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	// Write an invalid secrets YAML file
+	secretsPath := filepath.Join(dir, "dev.secrets.yaml")
+	if err := os.WriteFile(secretsPath, []byte("{{{{not yaml"), 0644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	_, err := repo.GetWithSecrets("dev")
+	if err == nil {
+		t.Fatal("expected error for invalid secrets YAML")
+	}
+	if !IsDomainError(err, envelope.CodeInvalidYAML) {
+		t.Errorf("expected INVALID_YAML, got: %v", err)
+	}
+}
+
+func TestFileRepository_GetWithSecrets_BaseHasNilMaps(t *testing.T) {
+	dir := t.TempDir()
+	repo := NewFileRepository(dir)
+
+	// Create base environment with NO secrets and NO variables
+	base := &Environment{Name: "Minimal"}
+	if err := repo.Save("minimal", base); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	// Create secrets file with new entries
+	secretsYAML := "secrets:\n  newKey: new-value\nvariables:\n  newVar: new-var-value\n"
+	secretsPath := filepath.Join(dir, "minimal.secrets.yaml")
+	if err := os.WriteFile(secretsPath, []byte(secretsYAML), 0644); err != nil {
+		t.Fatalf("write secrets: %v", err)
+	}
+
+	got, err := repo.GetWithSecrets("minimal")
+	if err != nil {
+		t.Fatalf("GetWithSecrets() error: %v", err)
+	}
+	if got.Secrets["newKey"] != "new-value" {
+		t.Errorf("newKey = %q, want %q", got.Secrets["newKey"], "new-value")
+	}
+	if got.Variables["newVar"] != "new-var-value" {
+		t.Errorf("newVar = %v, want %q", got.Variables["newVar"], "new-var-value")
+	}
+}

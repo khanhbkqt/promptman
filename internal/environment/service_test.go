@@ -17,6 +17,7 @@ func newTestService(t *testing.T) (*Service, string) {
 // --- Service.Create ---
 
 func TestService_Create_Success(t *testing.T) {
+	t.Setenv("API_KEY", "test-key")
 	svc, _ := newTestService(t)
 
 	env, err := svc.Create(&CreateEnvInput{
@@ -38,13 +39,16 @@ func TestService_Create_Success(t *testing.T) {
 		t.Errorf("Secrets count = %d, want 1", len(env.Secrets))
 	}
 
-	// Verify persistence.
+	// Verify persistence — Get now returns masked secrets.
 	got, err := svc.Get("dev")
 	if err != nil {
 		t.Fatalf("Get after Create: %v", err)
 	}
 	if got.Name != "dev" {
 		t.Errorf("Get Name = %q, want %q", got.Name, "dev")
+	}
+	if got.Secrets["apiKey"] != "***" {
+		t.Errorf("Get should mask apiKey, got %q", got.Secrets["apiKey"])
 	}
 }
 
@@ -147,9 +151,126 @@ func TestService_Get_NotFound(t *testing.T) {
 	}
 }
 
+func TestService_Get_MasksSecrets(t *testing.T) {
+	t.Setenv("TEST_SECRET", "real-secret-value")
+	svc, _ := newTestService(t)
+
+	_, err := svc.Create(&CreateEnvInput{
+		Name:    "dev",
+		Secrets: map[string]string{"mySecret": "$ENV{TEST_SECRET}", "plainVal": "plain-text"},
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	got, err := svc.Get("dev")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+
+	// All secrets should be masked.
+	for key, val := range got.Secrets {
+		if val != "***" {
+			t.Errorf("secret %q = %q, want '***'", key, val)
+		}
+	}
+}
+
+func TestService_Get_UnsetEnvVar(t *testing.T) {
+	svc, _ := newTestService(t)
+
+	_, err := svc.Create(&CreateEnvInput{
+		Name:    "dev",
+		Secrets: map[string]string{"mySecret": "$ENV{TOTALLY_UNSET_VAR_XYZ}"},
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	_, err = svc.Get("dev")
+	if err == nil {
+		t.Fatal("expected error for unset env var")
+	}
+	if !IsDomainError(err, "SECRET_RESOLVE_FAILED") {
+		t.Errorf("expected SECRET_RESOLVE_FAILED, got: %v", err)
+	}
+}
+
+// --- Service.GetRaw ---
+
+func TestService_GetRaw_ReturnsRealValues(t *testing.T) {
+	t.Setenv("TEST_RAW_SECRET", "the-real-value")
+	svc, _ := newTestService(t)
+
+	_, err := svc.Create(&CreateEnvInput{
+		Name:    "dev",
+		Secrets: map[string]string{"mySecret": "$ENV{TEST_RAW_SECRET}", "plain": "not-env-ref"},
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	got, err := svc.GetRaw("dev")
+	if err != nil {
+		t.Fatalf("GetRaw: %v", err)
+	}
+
+	if got.Secrets["mySecret"] != "the-real-value" {
+		t.Errorf("mySecret = %q, want %q", got.Secrets["mySecret"], "the-real-value")
+	}
+	if got.Secrets["plain"] != "not-env-ref" {
+		t.Errorf("plain = %q, want %q", got.Secrets["plain"], "not-env-ref")
+	}
+}
+
+func TestService_GetRaw_NotFound(t *testing.T) {
+	svc, _ := newTestService(t)
+
+	_, err := svc.GetRaw("nonexistent")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !IsDomainError(err, "ENV_NOT_FOUND") {
+		t.Errorf("expected ENV_NOT_FOUND, got: %v", err)
+	}
+}
+
+func TestService_GetRaw_WithSecretsFile(t *testing.T) {
+	t.Setenv("TEST_OVERRIDE_KEY", "from-env")
+	dir := t.TempDir()
+	repo := NewFileRepository(dir)
+	svc := NewService(repo)
+
+	_, err := svc.Create(&CreateEnvInput{
+		Name:    "dev",
+		Secrets: map[string]string{"apiKey": "$ENV{TEST_OVERRIDE_KEY}"},
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	// Write a .secrets.yaml that overrides the apiKey with a direct value
+	secretsYAML := "secrets:\n  apiKey: direct-override-value\n"
+	if err := os.WriteFile(filepath.Join(dir, "dev.secrets.yaml"), []byte(secretsYAML), 0644); err != nil {
+		t.Fatalf("write secrets: %v", err)
+	}
+
+	got, err := svc.GetRaw("dev")
+	if err != nil {
+		t.Fatalf("GetRaw: %v", err)
+	}
+
+	// .secrets.yaml override takes precedence, and since "direct-override-value"
+	// doesn't match $ENV{} pattern, it passes through unchanged.
+	if got.Secrets["apiKey"] != "direct-override-value" {
+		t.Errorf("apiKey = %q, want %q", got.Secrets["apiKey"], "direct-override-value")
+	}
+}
+
 // --- Service.Update ---
 
 func TestService_Update_PartialMerge(t *testing.T) {
+	t.Setenv("API_KEY", "test-key")
 	svc, _ := newTestService(t)
 
 	_, err := svc.Create(&CreateEnvInput{
@@ -252,6 +373,7 @@ func TestService_Delete_NotFound(t *testing.T) {
 // --- Full CRUD Flow ---
 
 func TestService_FullFlow(t *testing.T) {
+	t.Setenv("STAGING_DB_PASS", "staging-password")
 	dir := t.TempDir()
 	repo := NewFileRepository(dir)
 	svc := NewService(repo)
@@ -284,13 +406,25 @@ func TestService_FullFlow(t *testing.T) {
 		t.Errorf("SecretCount = %d, want 1", summaries[0].SecretCount)
 	}
 
-	// 3. Get
+	// 3. Get — secrets should be masked
 	got, err := svc.Get("staging")
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
 	if got.Name != "staging" {
 		t.Errorf("Name = %q", got.Name)
+	}
+	if got.Secrets["dbPass"] != "***" {
+		t.Errorf("Get should mask dbPass, got %q", got.Secrets["dbPass"])
+	}
+
+	// 3b. GetRaw — secrets should be real values
+	raw, err := svc.GetRaw("staging")
+	if err != nil {
+		t.Fatalf("GetRaw: %v", err)
+	}
+	if raw.Secrets["dbPass"] != "staging-password" {
+		t.Errorf("GetRaw dbPass = %q, want %q", raw.Secrets["dbPass"], "staging-password")
 	}
 
 	// 4. Update
@@ -318,5 +452,101 @@ func TestService_FullFlow(t *testing.T) {
 	_, err = svc.Get("staging")
 	if !IsDomainError(err, "ENV_NOT_FOUND") {
 		t.Errorf("expected ENV_NOT_FOUND after delete, got: %v", err)
+	}
+}
+
+// --- Service.SetActive / GetActive ---
+
+func TestService_SetActive_Success(t *testing.T) {
+	svc, _ := newTestService(t)
+
+	if _, err := svc.Create(&CreateEnvInput{Name: "dev"}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	if err := svc.SetActive("dev"); err != nil {
+		t.Fatalf("SetActive: %v", err)
+	}
+
+	got, err := svc.GetActive()
+	if err != nil {
+		t.Fatalf("GetActive: %v", err)
+	}
+	if got != "dev" {
+		t.Errorf("GetActive = %q, want %q", got, "dev")
+	}
+}
+
+func TestService_GetActive_NotSet(t *testing.T) {
+	svc, _ := newTestService(t)
+
+	_, err := svc.GetActive()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !IsDomainError(err, "ENV_NOT_SET") {
+		t.Errorf("expected ENV_NOT_SET, got: %v", err)
+	}
+}
+
+func TestService_SetActive_NonexistentEnv(t *testing.T) {
+	svc, _ := newTestService(t)
+
+	err := svc.SetActive("nonexistent")
+	if err == nil {
+		t.Fatal("expected error for nonexistent env")
+	}
+	if !IsDomainError(err, "ENV_NOT_FOUND") {
+		t.Errorf("expected ENV_NOT_FOUND, got: %v", err)
+	}
+}
+
+func TestService_SetActive_Persistence(t *testing.T) {
+	dir := t.TempDir()
+
+	// Service #1: create env and set active.
+	svc1 := NewService(NewFileRepository(dir))
+	if _, err := svc1.Create(&CreateEnvInput{Name: "prod"}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if err := svc1.SetActive("prod"); err != nil {
+		t.Fatalf("SetActive: %v", err)
+	}
+
+	// Service #2: new instance, same dir — should read persisted active env.
+	svc2 := NewService(NewFileRepository(dir))
+	got, err := svc2.GetActive()
+	if err != nil {
+		t.Fatalf("GetActive (new service): %v", err)
+	}
+	if got != "prod" {
+		t.Errorf("GetActive = %q, want %q", got, "prod")
+	}
+}
+
+func TestService_SetActive_SwitchEnv(t *testing.T) {
+	svc, _ := newTestService(t)
+
+	if _, err := svc.Create(&CreateEnvInput{Name: "dev"}); err != nil {
+		t.Fatalf("Create dev: %v", err)
+	}
+	if _, err := svc.Create(&CreateEnvInput{Name: "prod"}); err != nil {
+		t.Fatalf("Create prod: %v", err)
+	}
+
+	// Set to dev, then switch to prod.
+	if err := svc.SetActive("dev"); err != nil {
+		t.Fatalf("SetActive dev: %v", err)
+	}
+	if err := svc.SetActive("prod"); err != nil {
+		t.Fatalf("SetActive prod: %v", err)
+	}
+
+	got, err := svc.GetActive()
+	if err != nil {
+		t.Fatalf("GetActive: %v", err)
+	}
+	if got != "prod" {
+		t.Errorf("GetActive = %q, want %q", got, "prod")
 	}
 }
