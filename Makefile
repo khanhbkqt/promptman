@@ -1,8 +1,21 @@
-.PHONY: build test lint coverage fmt vet clean
+.PHONY: build build-cli test lint coverage fmt vet clean
+
+# Version injection variables
+VERSION ?= dev
+COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+LDFLAGS := -X github.com/khanhnguyen/promptman/internal/cli.Version=$(VERSION) \
+           -X github.com/khanhnguyen/promptman/internal/cli.Commit=$(COMMIT) \
+           -X github.com/khanhnguyen/promptman/internal/cli.Date=$(DATE)
 
 # Build all binaries
 build:
 	go build ./...
+
+# Build CLI binary with version info
+build-cli:
+	go build -ldflags "$(LDFLAGS)" -o bin/promptman ./cmd/cli
+
 
 # Run all tests
 test:
