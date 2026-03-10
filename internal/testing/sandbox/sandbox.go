@@ -1,9 +1,11 @@
 package sandbox
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/dop251/goja"
 	testing "github.com/khanhnguyen/promptman/internal/testing"
@@ -37,6 +39,33 @@ func (s *Sandbox) Execute(script string) (goja.Value, error) {
 	return v, nil
 }
 
+// ExecuteWithTimeout runs the given JavaScript source with a per-test timeout.
+// If the script exceeds the timeout, the VM is interrupted and ErrTestTimeout
+// is returned. The ctx parameter should carry the suite-level deadline.
+func (s *Sandbox) ExecuteWithTimeout(ctx context.Context, script string, timeout time.Duration) (goja.Value, error) {
+	var result goja.Value
+
+	tm := NewTimeoutManager(timeout, 0)
+	err := tm.RunWithTimeout(ctx, s.vm, func() error {
+		v, err := s.vm.RunString(script)
+		if err != nil {
+			return err
+		}
+		result = v
+		return nil
+	})
+	if err != nil {
+		return nil, classifyError(err)
+	}
+	return result, nil
+}
+
+// VM returns the underlying goja runtime. This is package-internal
+// and intended for use by TimeoutManager.
+func (s *Sandbox) VM() *goja.Runtime {
+	return s.vm
+}
+
 // Console returns all captured console output (log, warn, error)
 // accumulated since creation or last Reset.
 func (s *Sandbox) Console() []string {
@@ -53,6 +82,17 @@ const sandboxViolationPrefix = "sandbox:"
 
 // classifyError converts a goja error into the appropriate DomainError.
 func classifyError(err error) error {
+	// Pass through already-classified domain errors (e.g., from RunWithTimeout).
+	if _, ok := err.(*testing.DomainError); ok {
+		return err
+	}
+
+	// Check for timeout interrupt first.
+	var interrupted *goja.InterruptedError
+	if errors.As(err, &interrupted) {
+		return testing.ErrTestTimeout.Wrapf("per-test timeout exceeded")
+	}
+
 	msg := err.Error()
 
 	// Check for sandbox violation markers in the error message.
