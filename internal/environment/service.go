@@ -21,9 +21,43 @@ func (s *Service) List() ([]EnvSummary, error) {
 	return s.repo.List()
 }
 
-// Get loads a single environment by name, including all variables and secrets.
+// Get loads a single environment by name, merges .secrets.yaml overrides,
+// resolves $ENV{} references, and masks all secret values as "***".
+// Use this for API responses where secrets must not leak.
 func (s *Service) Get(name string) (*Environment, error) {
-	return s.repo.Get(name)
+	env, err := s.repo.GetWithSecrets(name)
+	if err != nil {
+		return nil, err
+	}
+
+	// Resolve $ENV{} references in secrets.
+	resolved, err := ResolveSecrets(env.Secrets)
+	if err != nil {
+		return nil, err
+	}
+
+	// Mask all resolved secret values for safe output.
+	env.Secrets = MaskSecrets(resolved)
+	return env, nil
+}
+
+// GetRaw loads a single environment by name, merges .secrets.yaml overrides,
+// and resolves $ENV{} references — returning the actual secret values.
+// This is for internal use only (e.g., by the M3 request execution engine).
+// GetRaw MUST NOT be exposed via the REST API.
+func (s *Service) GetRaw(name string) (*Environment, error) {
+	env, err := s.repo.GetWithSecrets(name)
+	if err != nil {
+		return nil, err
+	}
+
+	resolved, err := ResolveSecrets(env.Secrets)
+	if err != nil {
+		return nil, err
+	}
+
+	env.Secrets = resolved
+	return env, nil
 }
 
 // Create validates the input, checks for duplicates, persists the environment,
