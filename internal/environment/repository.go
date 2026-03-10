@@ -11,6 +11,9 @@ import (
 	"github.com/khanhnguyen/promptman/pkg/fsutil"
 )
 
+// activeEnvFile is the filename used to persist the active environment name.
+const activeEnvFile = ".active"
+
 // validName matches safe environment names: lowercase alphanumeric and hyphens.
 // This prevents path-traversal attacks and enforces kebab-case naming.
 var validName = regexp.MustCompile(`^[a-z0-9-]+$`)
@@ -34,6 +37,13 @@ type Repository interface {
 
 	// Delete removes the environment YAML file (and secrets file if present).
 	Delete(name string) error
+
+	// ReadActiveEnv reads the persisted active environment name.
+	// Returns an empty string if no active environment is set.
+	ReadActiveEnv() (string, error)
+
+	// WriteActiveEnv persists the active environment name to disk.
+	WriteActiveEnv(name string) error
 }
 
 // FileRepository implements Repository using the local filesystem.
@@ -234,6 +244,40 @@ func (r *FileRepository) Delete(name string) error {
 	secretsPath := filepath.Join(dir, name+".secrets.yaml")
 	// Ignore errors — the secrets file may not exist.
 	os.Remove(secretsPath)
+
+	return nil
+}
+
+// ReadActiveEnv reads the persisted active environment name from the .active file.
+// Returns an empty string if the file does not exist or is empty.
+func (r *FileRepository) ReadActiveEnv() (string, error) {
+	dir, err := r.environmentsDir()
+	if err != nil {
+		return "", err
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, activeEnvFile))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("read active env: %w", err)
+	}
+
+	return strings.TrimSpace(string(data)), nil
+}
+
+// WriteActiveEnv persists the active environment name to the .active file.
+func (r *FileRepository) WriteActiveEnv(name string) error {
+	dir, err := r.environmentsDir()
+	if err != nil {
+		return err
+	}
+
+	path := filepath.Join(dir, activeEnvFile)
+	if err := os.WriteFile(path, []byte(name+"\n"), 0o644); err != nil {
+		return fmt.Errorf("write active env: %w", err)
+	}
 
 	return nil
 }

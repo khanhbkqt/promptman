@@ -454,3 +454,99 @@ func TestService_FullFlow(t *testing.T) {
 		t.Errorf("expected ENV_NOT_FOUND after delete, got: %v", err)
 	}
 }
+
+// --- Service.SetActive / GetActive ---
+
+func TestService_SetActive_Success(t *testing.T) {
+	svc, _ := newTestService(t)
+
+	if _, err := svc.Create(&CreateEnvInput{Name: "dev"}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	if err := svc.SetActive("dev"); err != nil {
+		t.Fatalf("SetActive: %v", err)
+	}
+
+	got, err := svc.GetActive()
+	if err != nil {
+		t.Fatalf("GetActive: %v", err)
+	}
+	if got != "dev" {
+		t.Errorf("GetActive = %q, want %q", got, "dev")
+	}
+}
+
+func TestService_GetActive_NotSet(t *testing.T) {
+	svc, _ := newTestService(t)
+
+	_, err := svc.GetActive()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !IsDomainError(err, "ENV_NOT_SET") {
+		t.Errorf("expected ENV_NOT_SET, got: %v", err)
+	}
+}
+
+func TestService_SetActive_NonexistentEnv(t *testing.T) {
+	svc, _ := newTestService(t)
+
+	err := svc.SetActive("nonexistent")
+	if err == nil {
+		t.Fatal("expected error for nonexistent env")
+	}
+	if !IsDomainError(err, "ENV_NOT_FOUND") {
+		t.Errorf("expected ENV_NOT_FOUND, got: %v", err)
+	}
+}
+
+func TestService_SetActive_Persistence(t *testing.T) {
+	dir := t.TempDir()
+
+	// Service #1: create env and set active.
+	svc1 := NewService(NewFileRepository(dir))
+	if _, err := svc1.Create(&CreateEnvInput{Name: "prod"}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if err := svc1.SetActive("prod"); err != nil {
+		t.Fatalf("SetActive: %v", err)
+	}
+
+	// Service #2: new instance, same dir — should read persisted active env.
+	svc2 := NewService(NewFileRepository(dir))
+	got, err := svc2.GetActive()
+	if err != nil {
+		t.Fatalf("GetActive (new service): %v", err)
+	}
+	if got != "prod" {
+		t.Errorf("GetActive = %q, want %q", got, "prod")
+	}
+}
+
+func TestService_SetActive_SwitchEnv(t *testing.T) {
+	svc, _ := newTestService(t)
+
+	if _, err := svc.Create(&CreateEnvInput{Name: "dev"}); err != nil {
+		t.Fatalf("Create dev: %v", err)
+	}
+	if _, err := svc.Create(&CreateEnvInput{Name: "prod"}); err != nil {
+		t.Fatalf("Create prod: %v", err)
+	}
+
+	// Set to dev, then switch to prod.
+	if err := svc.SetActive("dev"); err != nil {
+		t.Fatalf("SetActive dev: %v", err)
+	}
+	if err := svc.SetActive("prod"); err != nil {
+		t.Fatalf("SetActive prod: %v", err)
+	}
+
+	got, err := svc.GetActive()
+	if err != nil {
+		t.Fatalf("GetActive: %v", err)
+	}
+	if got != "prod" {
+		t.Errorf("GetActive = %q, want %q", got, "prod")
+	}
+}

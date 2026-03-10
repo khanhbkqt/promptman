@@ -119,3 +119,26 @@ func (s *Service) Update(name string, input *UpdateEnvInput) (*Environment, erro
 func (s *Service) Delete(name string) error {
 	return s.repo.Delete(name)
 }
+
+// SetActive sets the active environment to the given name.
+// It validates that the environment exists before persisting the choice.
+func (s *Service) SetActive(name string) error {
+	// Verify the environment exists.
+	if _, err := s.repo.Get(name); err != nil {
+		return err
+	}
+	return s.repo.WriteActiveEnv(name)
+}
+
+// GetActive returns the name of the currently active environment.
+// Returns ErrEnvNotSet if no active environment has been configured.
+func (s *Service) GetActive() (string, error) {
+	name, err := s.repo.ReadActiveEnv()
+	if err != nil {
+		return "", fmt.Errorf("get active environment: %w", err)
+	}
+	if name == "" {
+		return "", ErrEnvNotSet
+	}
+	return name, nil
+}
