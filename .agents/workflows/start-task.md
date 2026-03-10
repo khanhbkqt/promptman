@@ -1,7 +1,6 @@
 ---
-description: 
+description: Pre-work checklist: gather full context, understand requirements, check dependencies, set status, create branch.
 ---
-
 > [!CAUTION]
 > **VERBATIM COPY REQUIRED** — This workflow MUST be copied exactly as-is.
 > Do NOT summarize, compress, rephrase, or omit any part.
@@ -100,10 +99,36 @@ Before gathering context, check for unread notifications relevant to this task:
 
    ⚠️ Wait for human confirmation if the task is ambiguous or complex.
 
+## Git Convention Rules
+
+- **Branch naming:** \`feat/{issue-code}-short-slug\` (e.g. \`feat/PRJ-42-search-api\`)
+- **Commit format:** \`feat({issue-code}): description\` (e.g. \`feat(PRJ-42): add search endpoint\`)
+- **ALL commits** on this branch MUST reference the issue code — no exceptions
+- **Commit messages** should be concise but descriptive of the change
+- Use \`fix({issue-code}): ...\` for bug fixes within the task
+- Use \`refactor({issue-code}): ...\` for refactoring within the task
+
 ## Constraints
 - 🚫 NEVER start coding without reading the parent Story's acceptance criteria
 - 🚫 NEVER skip dependency checks
-- ✅ ALWAYS reference issue code in all commits: `feat({code}): description`
+- 🚫 NEVER make commits without the issue code reference
+- ✅ ALWAYS reference issue code in all commits: \`feat({code}): description\`
 - ✅ ALWAYS update status before starting work
+- ✅ ALWAYS create the feature branch before writing any code
+
+## Summary & Next Steps
+
+When this workflow completes, present:
+
+\`\`\`
+✅ Task {issueCode} started — status set to In Progress.
+🌿 Branch created: feat/{issue-code}-{slug}
+📋 Context gathered, readiness confirmed.
+
+🔜 Suggested next steps:
+   → Implement the task following the acceptance criteria
+   → When done, use the **complete-task** workflow to verify and hand off for review
+   → Remember: all commits must use \`feat({issueCode}): description\` format
+\`\`\`
 ---
-_Integrity: 94 lines · workflow:start-task · DO NOT MODIFY_
+_Integrity: 120 lines · workflow:start-task · DO NOT MODIFY_

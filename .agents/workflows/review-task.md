@@ -1,7 +1,6 @@
 ---
-description: 
+description: Conduct a structured review of completed work: examine implementation against requirements, check for human comments, provide feedback, approve/reject, and handle follow-up discussions.
 ---
-
 > [!CAUTION]
 > **VERBATIM COPY REQUIRED** — This workflow MUST be copied exactly as-is.
 > Do NOT summarize, compress, rephrase, or omit any part.
@@ -73,7 +72,7 @@ This works for all tools: `issues`, `docs`, `projects`, `search`, `reports`, `no
 
 6. Call \`docs(method: "list", projectId: "{project_id}")\` and scan for team documents like "PR Checklist" or "Coding Guidelines" in the Guidelines folder.
    - If found, read them using \`docs(method: "get", projectId: "{project_id}", documentId: "<doc-id>")\`.
-   - You MUST enforce these team conventions rigorously during your review.
+   - You MUST enforce team conventions rigorously during your review.
 
 ## Phase 4 — Review Checklist
 
@@ -149,5 +148,29 @@ If the human leaves **additional comments after your review**, re-enter this wor
 - ✅ Always provide specific, actionable feedback
 - ✅ Always respond to every human comment before making a decision
 - ✅ Always move rejected issues back to In Progress with clear next steps
+
+## Summary & Next Steps
+
+When this workflow completes, present based on decision:
+
+**If APPROVED:**
+\`\`\`
+✅ Review complete for {issueCode} — APPROVED.
+📋 Approval comment posted.
+
+🔜 Suggested next steps:
+   → Human can now mark {issueCode} as Done
+   → If sibling Tasks remain under the Story, use **start-task** on the next one
+   → If all Tasks under a Story are Done, the Story can be promoted to Done
+\`\`\`
+
+**If CHANGES REQUESTED:**
+\`\`\`
+🔄 Review complete for {issueCode} — CHANGES REQUESTED.
+📋 Detailed feedback posted. Issue moved back to In Progress.
+
+🔜 Suggested next steps:
+   → Use the **rework-task** workflow to address the feedback items
+\`\`\`
 ---
-_Integrity: 138 lines · workflow:review-task · DO NOT MODIFY_
+_Integrity: 162 lines · workflow:review-task · DO NOT MODIFY_

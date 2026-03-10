@@ -1,7 +1,6 @@
 ---
-description: 
+description: Facilitate sprint planning: create a board, gather candidate Stories, get human approval, populate the board.
 ---
-
 > [!CAUTION]
 > **VERBATIM COPY REQUIRED** — This workflow MUST be copied exactly as-is.
 > Do NOT summarize, compress, rephrase, or omit any part.
@@ -77,5 +76,19 @@ This works for all tools: `issues`, `docs`, `projects`, `search`, `reports`, `no
 - 🚫 NEVER auto-add Stories — human must explicitly confirm
 - 🚫 NEVER add Stories that have unresolved dependencies without noting it
 - ✅ Always show dependency relationships in the summary
+
+## Summary & Next Steps
+
+When this workflow completes, present:
+
+\`\`\`
+✅ Sprint board "{board_name}" populated with {N} Stories.
+📋 Sprint plan presented with dependency relationships.
+
+🔜 Suggested next steps:
+   → Use the **analyze-story** workflow for Stories that need task breakdown
+   → Use the **start-task** workflow to begin the highest-priority Task
+   → Use the **project-sync** workflow periodically to monitor sprint progress
+\`\`\`
 ---
-_Integrity: 66 lines · workflow:sprint-planning · DO NOT MODIFY_
+_Integrity: 80 lines · workflow:sprint-planning · DO NOT MODIFY_

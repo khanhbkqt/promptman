@@ -96,19 +96,19 @@ Documents can be linked to issues for context. This is bidirectional — the iss
 shows linked docs, and `issues(method: "get")` returns them.
 
 ```
-issues(method: "update",
+docs(method: "link",
   projectId: "PRJ",
-  issueId: "PRJ-42",
-  linkDocumentIds: ["d2", "d3"]    ← link API Reference and Data Model
+  documentId: "d2",        ← Document UUID
+  issueId: "PRJ-42"        ← Issue UUID or code
 )
 ```
 
 To unlink:
 ```
-issues(method: "update",
+docs(method: "unlink",
   projectId: "PRJ",
-  issueId: "PRJ-42",
-  unlinkDocumentIds: ["d3"]        ← remove Data Model link
+  documentId: "d3",
+  issueId: "PRJ-42"
 )
 ```
 
@@ -132,8 +132,7 @@ After implementing a feature, documentation may be stale. Follow this pattern:
      content: "<updated content>",
      brief: "<updated brief if scope changed>")
 
-5. issues(method: "update",projectId: "PRJ", issueId: "PRJ-42",
-     linkDocumentIds: ["<updated-doc-id>"])
+5. docs(method: "link", projectId: "PRJ", documentId: "<updated-doc-id>", issueId: "PRJ-42")
    → Link the updated doc to the issue for traceability
 
 6. issues(method: "comment",projectId: "PRJ", issueId: "PRJ-42",
@@ -158,8 +157,9 @@ Before planning a new feature, gather existing knowledge:
     The architecture doc shows we use X pattern. Should I proceed with planning?"
 
 4. Link relevant docs to the new Epic when created:
-   issues(method: "update",projectId: "PRJ", issueId: "PRJ-50",
-     linkDocumentIds: ["d1", "d2", "d3"])
+   docs(method: "link", projectId: "PRJ", documentId: "d1", issueId: "PRJ-50")
+   docs(method: "link", projectId: "PRJ", documentId: "d2", issueId: "PRJ-50")
+   docs(method: "link", projectId: "PRJ", documentId: "d3", issueId: "PRJ-50")
 ```
 
 ## Document Conventions

@@ -1,7 +1,6 @@
 ---
-description: 
+description: Post-implementation checklist: verify acceptance criteria, run tests, document changes, hand off for review.
 ---
-
 > [!CAUTION]
 > **VERBATIM COPY REQUIRED** — This workflow MUST be copied exactly as-is.
 > Do NOT summarize, compress, rephrase, or omit any part.
@@ -125,11 +124,38 @@ This works for all tools: `issues`, `docs`, `projects`, `search`, `reports`, `no
     ⏭️ A reviewer will now assess the implementation.
     ```
 
+## Git Verification
+
+Before moving to In Review, verify:
+
+- **Branch name** follows convention: \`feat/{issue-code}-*\`
+- **All commits** on this branch reference the issue code
+- **Commit format** is correct: \`feat({issue-code}): description\`
+- No untracked or unstaged changes remain
+
 ## Constraints
 - 🚫 NEVER move an issue to "Done" — only humans can approve
 - 🚫 NEVER skip the acceptance criteria check
+- 🚫 NEVER move to In Review with uncommitted changes
 - ✅ ALWAYS check team guidelines doc (if it exists) before moving to In Review
 - ✅ ALWAYS post an implementation summary comment before moving to In Review
 - ✅ ALWAYS include test results in the summary
+- ✅ ALWAYS verify git commit conventions before completing
+
+## Summary & Next Steps
+
+When this workflow completes, present:
+
+\`\`\`
+✅ Task {issueCode} moved to In Review.
+📋 Implementation summary posted as comment.
+🌿 Branch: feat/{issue-code}-{slug}
+📄 Documentation impact: {needs sync / none}.
+
+🔜 Suggested next steps:
+   → A reviewer will use the **review-task** workflow to assess the implementation
+   → If documentation needs updating, use the **sync-docs** workflow
+   → If sibling Tasks remain under the Story, use **start-task** on the next one
+\`\`\`
 ---
-_Integrity: 120 lines · workflow:complete-task · DO NOT MODIFY_
+_Integrity: 147 lines · workflow:complete-task · DO NOT MODIFY_

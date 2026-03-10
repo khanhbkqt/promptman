@@ -1,7 +1,6 @@
 ---
-description: 
+description: Handle a review rejection: read feedback, address each item, re-verify, and resubmit for review.
 ---
-
 > [!CAUTION]
 > **VERBATIM COPY REQUIRED** — This workflow MUST be copied exactly as-is.
 > Do NOT summarize, compress, rephrase, or omit any part.
@@ -118,5 +117,19 @@ This works for all tools: `issues`, `docs`, `projects`, `search`, `reports`, `no
 - 🚫 NEVER move to In Review without posting a rework comment
 - ✅ ALWAYS reference the specific feedback items in your rework comment
 - ✅ ALWAYS run tests after making fixes
+
+## Summary & Next Steps
+
+When this workflow completes, present:
+
+\`\`\`
+🔄 Rework complete for {issueCode}.
+✅ {N} must-fix items addressed, {M} should-fix items resolved.
+📋 Rework summary posted as comment. Issue moved to In Review.
+
+🔜 Suggested next steps:
+   → A reviewer will use the **review-task** workflow to re-assess the implementation
+   → If approved, human can mark as Done
+\`\`\`
 ---
-_Integrity: 107 lines · workflow:rework-task · DO NOT MODIFY_
+_Integrity: 121 lines · workflow:rework-task · DO NOT MODIFY_

@@ -1,7 +1,6 @@
 ---
-description: 
+description: Decompose a feature into Epic → Stories hierarchy with comprehensive task breakdown instructions.
 ---
-
 > [!CAUTION]
 > **VERBATIM COPY REQUIRED** — This workflow MUST be copied exactly as-is.
 > Do NOT summarize, compress, rephrase, or omit any part.
@@ -71,7 +70,7 @@ This works for all tools: `issues`, `docs`, `projects`, `search`, `reports`, `no
    ```
    Save the returned Epic ID.
 
-   - **IMPORTANT**: Link relevant documents using `issues(method: "update", ...)` with `linkDocumentIds`.
+    - **IMPORTANT**: Link relevant documents to this Epic using `docs(method: "link", projectId: "{project_id}", documentId: "<doc-id>", issueId: "<epic-code>")`.
 
 ## Phase 4 — Create Stories with Task Breakdown
 
@@ -117,12 +116,40 @@ This works for all tools: `issues`, `docs`, `projects`, `search`, `reports`, `no
 
 ## Phase 5 — Summary
 
-8. Present the complete hierarchy to the human.
+8. Present the complete hierarchy to the human:
+
+   \`\`\`markdown
+   ## 📋 Feature Planned: {Epic title}
+
+   **Epic:** {epicCode} — {title}
+   **Stories created:** {N}
+
+   | # | Story Code | Title | Size | Dependencies |
+   |---|-----------|-------|------|-------------|
+   | 1 | {code} | {title} | M | None |
+   | 2 | {code} | {title} | L | #1 |
+
+   **Linked documents:** {list or "None"}
+   \`\`\`
 
 ## Constraints
 - 🚫 Do NOT create Tasks — Member agents own task breakdown
 - 🚫 Do NOT create Stories from vague input — ask for clarification
 - ✅ All issues MUST be created in Backlog status
 - ✅ Every Story MUST have all template sections filled out
+
+## Summary & Next Steps
+
+When this workflow completes, present:
+
+\`\`\`
+✅ Feature planned: {epicCode} — {Epic title}.
+📋 Created {N} Stories under the Epic.
+
+🔜 Suggested next steps:
+   → Use the **analyze-story** workflow on the first Story to do deep technical analysis and create Tasks
+   → Use the **start-task** workflow if a Story is simple enough to start directly (no task breakdown needed)
+   → Use the **sprint-planning** workflow to add these Stories to a sprint board
+\`\`\`
 ---
-_Integrity: 113 lines · workflow:plan-feature · DO NOT MODIFY_
+_Integrity: 141 lines · workflow:plan-feature · DO NOT MODIFY_

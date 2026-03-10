@@ -1,7 +1,6 @@
 ---
-description: 
+description: Install VibePM skills, workflows, and IDE rules locally. Run once per project — no MCP reads needed afterwards.
 ---
-
 > [!CAUTION]
 > **VERBATIM COPY REQUIRED** — This workflow MUST be copied exactly as-is.
 > Do NOT summarize, compress, rephrase, or omit any part.
@@ -121,5 +120,19 @@ Report to the user:
 ## Error Recovery
 - If `read_resource` fails: check your MCP connection.
 - If file write fails: ensure directories exist before writing, check filesystem permissions.
+
+## Summary & Next Steps
+
+When this workflow completes, present:
+
+\`\`\`
+✅ VibePM agent installed successfully.
+📄 AGENTS.md + {N} skills + {M} workflows written locally.
+
+🔜 Suggested next steps:
+   → Use the **project-health** workflow to assess project state and readiness
+   → Use the **check-notifications** workflow to see any pending assignments
+   → You're now ready to use any VibePM workflow from local files
+\`\`\`
 ---
-_Integrity: 110 lines · workflow:setup-rules · DO NOT MODIFY_
+_Integrity: 124 lines · workflow:setup-rules · DO NOT MODIFY_

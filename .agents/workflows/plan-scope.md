@@ -1,7 +1,6 @@
 ---
-description: 
+description: Define the scope of a milestone or phase: review brainstorm outputs, group features, set boundaries, produce a scoping document.
 ---
-
 > [!CAUTION]
 > **VERBATIM COPY REQUIRED** — This workflow MUST be copied exactly as-is.
 > Do NOT summarize, compress, rephrase, or omit any part.
@@ -116,7 +115,7 @@ This works for all tools: `issues`, `docs`, `projects`, `search`, `reports`, `no
 
    ## Next Steps
    - [ ] Human approves scope
-   - [ ] Link this document to Epics using \`issues(method: "update", ...)\` (\`linkDocumentIds\`)
+   - [ ] Link this document to Epics using `docs(method: "link", projectId: "...", documentId: "<doc-id>", issueId: "<epic-code>")`
    - [ ] Use the **plan-feature** workflow for each feature needing Epics
    - [ ] Use the **sprint-planning** workflow to populate the first board
    ```
@@ -128,5 +127,20 @@ This works for all tools: `issues`, `docs`, `projects`, `search`, `reports`, `no
 - 🚫 Do NOT skip the risk assessment
 - ✅ Always separate features into phases with clear dependencies
 - ✅ Always define explicit "Out of Scope" to prevent scope creep
+
+## Summary & Next Steps
+
+When this workflow completes, present:
+
+```
+✅ Scope defined for "{milestone_name}".
+📄 Scoping document created with {N} in-scope features across {M} phases.
+
+🔜 Suggested next steps:
+   → Use the **plan-feature** workflow for each in-scope feature that needs an Epic
+   → Use the **sprint-planning** workflow to populate the first sprint board
+   → Link the scoping document to relevant Epics as they are created
+```
+
 ---
-_Integrity: 117 lines · workflow:plan-scope · DO NOT MODIFY_
+_Integrity: 132 lines · workflow:plan-scope · DO NOT MODIFY_

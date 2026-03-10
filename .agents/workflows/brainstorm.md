@@ -1,7 +1,6 @@
 ---
-description: 
+description: Facilitate a structured brainstorming session: gather context, diverge on ideas, converge into a document, and get human sign-off.
 ---
-
 > [!CAUTION]
 > **VERBATIM COPY REQUIRED** — This workflow MUST be copied exactly as-is.
 > Do NOT summarize, compress, rephrase, or omit any part.
@@ -113,7 +112,7 @@ This works for all tools: `issues`, `docs`, `projects`, `search`, `reports`, `no
 
    ## Next Steps
    - [ ] Human reviews and selects ideas to pursue
-   - [ ] Link this document to relevant Epics using \`issues(method: "update", ...)\` (\`linkDocumentIds\`)
+   - [ ] Link this document to relevant Epics using `docs(method: "link", projectId: "...", documentId: "<doc-id>", issueId: "<epic-code>")`
    - [ ] Use the **plan-scope** workflow to define a milestone
    - [ ] Use the **plan-feature** workflow for each approved feature
    ```
@@ -125,5 +124,19 @@ This works for all tools: `issues`, `docs`, `projects`, `search`, `reports`, `no
 - 🚫 Do NOT skip the human review checkpoint
 - ✅ Always capture output as a VibePM document
 - ✅ Always include recommendations with clear priority signals
+
+## Summary & Next Steps
+
+When this workflow completes, present:
+
+\`\`\`
+✅ Brainstorm complete for "{topic}".
+📄 Brainstorm document created with {N} ideas across {M} themes.
+
+🔜 Suggested next steps:
+   → Use the **plan-scope** workflow to define a milestone from the approved ideas
+   → Use the **plan-feature** workflow if a single feature is ready to plan into Epic → Stories
+   → Revisit this brainstorm document later for ideas marked "Park for later"
+\`\`\`
 ---
-_Integrity: 114 lines · workflow:brainstorm · DO NOT MODIFY_
+_Integrity: 128 lines · workflow:brainstorm · DO NOT MODIFY_

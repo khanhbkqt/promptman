@@ -1,7 +1,6 @@
 ---
-description: 
+description: Deep technical analysis of a Story: review context and docs, write implementation plan, get approval, create Tasks.
 ---
-
 > [!CAUTION]
 > **VERBATIM COPY REQUIRED** — This workflow MUST be copied exactly as-is.
 > Do NOT summarize, compress, rephrase, or omit any part.
@@ -89,9 +88,21 @@ This works for all tools: `issues`, `docs`, `projects`, `search`, `reports`, `no
 
 ## Phase 4 — Create Tasks
 
-10. After human approval, create Tasks under the Story using `issues(method: "create", ...)` with type "TASK".
+10. After human approval, create Tasks under the Story using \`issues(method: "create", ...)\` with type "TASK".
+    - Each Task title should be clear and action-oriented
+    - Each Task description should include what to implement and which files are affected
+    - Set all Tasks to "Backlog" status
 
-11. Report the created Tasks and suggest using the **start-task** workflow for the first task.
+11. Report the created Tasks:
+
+    \`\`\`markdown
+    ## ✅ Tasks Created for {storyCode}
+
+    | # | Task Code | Title | Complexity |
+    |---|----------|-------|-----------|
+    | 1 | {code} | {title} | Medium |
+    | 2 | {code} | {title} | Small |
+    \`\`\`
 
 ## Constraints
 - 🚫 NEVER create Tasks without reading project documentation first
@@ -99,5 +110,18 @@ This works for all tools: `issues`, `docs`, `projects`, `search`, `reports`, `no
 - 🚫 NEVER create more than 5 Tasks per Story
 - ✅ ALWAYS check for database and API impact
 - ✅ ALWAYS include test expectations within each task
+
+## Summary & Next Steps
+
+When this workflow completes, present:
+
+\`\`\`
+✅ Story {storyCode} analyzed and {N} Tasks created.
+📋 Implementation plan posted as comment on the Story.
+
+🔜 Suggested next steps:
+   → Use the **start-task** workflow on {firstTaskCode} to begin implementation
+   → The remaining Tasks can be started sequentially after each is completed
+\`\`\`
 ---
-_Integrity: 88 lines · workflow:analyze-story · DO NOT MODIFY_
+_Integrity: 113 lines · workflow:analyze-story · DO NOT MODIFY_

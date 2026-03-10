@@ -1,7 +1,6 @@
 ---
-description: 
+description: After completing code changes, systematically identify and update all affected project documents.
 ---
-
 > [!CAUTION]
 > **VERBATIM COPY REQUIRED** — This workflow MUST be copied exactly as-is.
 > Do NOT summarize, compress, rephrase, or omit any part.
@@ -94,5 +93,25 @@ This works for all tools: `issues`, `docs`, `projects`, `search`, `reports`, `no
 ## Error Recovery
 - If `docs(method: "get", ...)` fails for a document, skip it and note in the audit.
 - If `docs(method: "update", ...)` fails, retry once. If it fails again, note the failure in the audit comment.
+
+## Constraints
+- 🚫 NEVER create new documents without checking if one already exists
+- 🚫 NEVER modify doc sections that are unrelated to the code changes
+- ✅ ALWAYS preserve existing document structure when updating
+- ✅ ALWAYS post an audit trail comment on the issue
+
+## Summary & Next Steps
+
+When this workflow completes, present:
+
+\`\`\`
+📄 Documentation sync complete for {issueCode}.
+✅ {N} documents updated, {M} gaps flagged.
+
+🔜 Suggested next steps:
+   → If this was part of completing a Task, the **review-task** workflow is next
+   → Use the **project-health** workflow to verify overall documentation state
+   → Address any flagged documentation gaps in a future task
+\`\`\`
 ---
-_Integrity: 83 lines · workflow:sync-docs · DO NOT MODIFY_
+_Integrity: 103 lines · workflow:sync-docs · DO NOT MODIFY_

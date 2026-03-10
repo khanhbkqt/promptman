@@ -1,7 +1,6 @@
 ---
-description: 
+description: Triage unread notifications — review assignments, comments, status changes, and mentions.
 ---
-
 > [!CAUTION]
 > **VERBATIM COPY REQUIRED** — This workflow MUST be copied exactly as-is.
 > Do NOT summarize, compress, rephrase, or omit any part.
@@ -65,6 +64,20 @@ notification(method: "read", notificationId: "<id>")
 - 🔴 Process COMMENTED notifications first — review feedback is highest priority
 - 🔴 Don't start new work until review feedback is addressed
 - ✅ Keep triage brief — if action is needed, note it and move on
-- ✅ Use `issues(method: "get", ...)` to understand assignments before deciding
+- ✅ Use \`issues(method: "get", ...)\` to understand assignments before deciding
+
+## Summary & Next Steps
+
+When this workflow completes, present:
+
+\`\`\`
+📬 Notifications triaged: {N} processed, {M} require action.
+
+🔜 Suggested next steps based on notifications:
+   → Use the **rework-task** workflow if review feedback was found on your work
+   → Use the **start-task** workflow if a new task was assigned to you
+   → Use the **review-task** workflow if a task is waiting for your review
+   → If no action needed, continue with your current work
+\`\`\`
 ---
-_Integrity: 55 lines · workflow:check-notifications · DO NOT MODIFY_
+_Integrity: 69 lines · workflow:check-notifications · DO NOT MODIFY_
