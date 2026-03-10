@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"fmt"
 	"os"
 	"sync/atomic"
 	"testing"
@@ -274,5 +275,100 @@ func TestManager_WithDefaults(t *testing.T) {
 	m := NewManager()
 	if m.idleTimeout != DefaultIdleTimeout {
 		t.Errorf("default idle timeout = %v, want %v", m.idleTimeout, DefaultIdleTimeout)
+	}
+}
+
+// --- Integration tests ---
+
+func TestManager_FullCycle(t *testing.T) {
+	dir := t.TempDir()
+	m := NewManager(WithIdleTimeout(0))
+
+	// Start.
+	info, err := m.Start(dir)
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if !m.IsRunning() {
+		t.Fatal("not running after Start")
+	}
+
+	// Status.
+	status, err := m.Status()
+	if err != nil {
+		t.Fatalf("Status: %v", err)
+	}
+	if status.Port != info.Port {
+		t.Errorf("port mismatch in status")
+	}
+
+	// Shutdown.
+	if err := m.Shutdown(); err != nil {
+		t.Fatalf("Shutdown: %v", err)
+	}
+	if m.IsRunning() {
+		t.Fatal("running after Shutdown")
+	}
+
+	// Restart.
+	info2, err := m.Start(dir)
+	if err != nil {
+		t.Fatalf("Restart: %v", err)
+	}
+	defer func() { _ = m.Stop() }()
+
+	if info2.Token == info.Token {
+		t.Error("token should differ after restart")
+	}
+}
+
+func TestManager_ConcurrentStatusAccess(t *testing.T) {
+	dir := t.TempDir()
+	m := NewManager(WithIdleTimeout(0))
+
+	if _, err := m.Start(dir); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer func() { _ = m.Stop() }()
+
+	// Hammer Status and IsRunning from multiple goroutines.
+	const n = 50
+	errs := make(chan error, n)
+
+	for i := 0; i < n; i++ {
+		go func() {
+			if !m.IsRunning() {
+				errs <- fmt.Errorf("IsRunning returned false")
+				return
+			}
+			if _, err := m.Status(); err != nil {
+				errs <- err
+				return
+			}
+			errs <- nil
+		}()
+	}
+
+	for i := 0; i < n; i++ {
+		if err := <-errs; err != nil {
+			t.Fatalf("concurrent access error: %v", err)
+		}
+	}
+}
+
+func TestManager_StartupSpeed(t *testing.T) {
+	dir := t.TempDir()
+	m := NewManager(WithIdleTimeout(0))
+
+	start := time.Now()
+	if _, err := m.Start(dir); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	elapsed := time.Since(start)
+	defer func() { _ = m.Stop() }()
+
+	// Startup must complete in < 500ms (acceptance criterion).
+	if elapsed > 500*time.Millisecond {
+		t.Errorf("startup took %v, want < 500ms", elapsed)
 	}
 }

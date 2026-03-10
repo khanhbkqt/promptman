@@ -382,3 +382,94 @@ func TestNewDaemonInfo(t *testing.T) {
 		t.Errorf("StartedAt = %v, want between %v and %v", info.StartedAt, before, after)
 	}
 }
+
+// --- Integration tests ---
+
+func TestLockFile_JSONFormat(t *testing.T) {
+	dir := setupTestDir(t)
+
+	info := &DaemonInfo{
+		PID:        12345,
+		Port:       48721,
+		Token:      "a1b2c3d4e5f6",
+		ProjectDir: "/path/to/project",
+		StartedAt:  time.Date(2026, 3, 10, 10, 30, 0, 0, time.UTC),
+	}
+
+	if err := WriteLockFile(dir, info); err != nil {
+		t.Fatalf("WriteLockFile: %v", err)
+	}
+
+	// Read raw JSON and verify field names match spec.
+	data, err := os.ReadFile(lockFilePath(dir))
+	if err != nil {
+		t.Fatalf("reading lock file: %v", err)
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("parsing lock file JSON: %v", err)
+	}
+
+	expectedFields := []string{"pid", "port", "token", "projectDir", "startedAt"}
+	for _, field := range expectedFields {
+		if _, ok := raw[field]; !ok {
+			t.Errorf("missing JSON field %q in lock file", field)
+		}
+	}
+}
+
+func TestLockFile_FilePermissions(t *testing.T) {
+	dir := setupTestDir(t)
+
+	info := &DaemonInfo{PID: 1, Port: 8080, Token: "t", ProjectDir: dir, StartedAt: time.Now()}
+	if err := WriteLockFile(dir, info); err != nil {
+		t.Fatalf("WriteLockFile: %v", err)
+	}
+
+	path := lockFilePath(dir)
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat lock file: %v", err)
+	}
+
+	// File should be 0600 (owner read/write only).
+	perm := fi.Mode().Perm()
+	if perm != 0o600 {
+		t.Errorf("lock file permissions = %o, want 0600", perm)
+	}
+}
+
+func TestConcurrentPortPicks(t *testing.T) {
+	const n = 10
+	ports := make(chan int, n)
+	errs := make(chan error, n)
+
+	for i := 0; i < n; i++ {
+		go func() {
+			port, err := PickRandomPort()
+			if err != nil {
+				errs <- err
+				return
+			}
+			ports <- port
+		}()
+	}
+
+	seen := make(map[int]bool)
+	for i := 0; i < n; i++ {
+		select {
+		case err := <-errs:
+			t.Fatalf("concurrent port pick failed: %v", err)
+		case port := <-ports:
+			if port <= 0 {
+				t.Errorf("invalid port %d", port)
+			}
+			if seen[port] {
+				// Log but don't fail — duplicates are possible but unlikely.
+				t.Logf("WARNING: duplicate port %d", port)
+			}
+			seen[port] = true
+		}
+	}
+}
