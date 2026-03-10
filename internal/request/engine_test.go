@@ -547,3 +547,397 @@ func TestEngine_WithDefaultTimeout(t *testing.T) {
 		t.Errorf("timeout = %v, want 5s", engine.timeout)
 	}
 }
+
+// --- Additional mock services for collection runner ---
+
+type mockCollectionGetter struct {
+	collections map[string]*collection.Collection
+	err         error
+}
+
+func (m *mockCollectionGetter) Get(id string) (*collection.Collection, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	c, ok := m.collections[id]
+	if !ok {
+		return nil, fmt.Errorf("collection %q not found", id)
+	}
+	return c, nil
+}
+
+type mockHistoryAppender struct {
+	entries []HistoryEntry
+	ch      chan struct{} // optional signal channel
+}
+
+func newMockHistoryAppender(expectedCalls int) *mockHistoryAppender {
+	return &mockHistoryAppender{
+		ch: make(chan struct{}, expectedCalls),
+	}
+}
+
+func (m *mockHistoryAppender) Append(entry HistoryEntry) {
+	m.entries = append(m.entries, entry)
+	if m.ch != nil {
+		m.ch <- struct{}{}
+	}
+}
+
+func (m *mockHistoryAppender) waitFor(n int, timeout time.Duration) bool {
+	deadline := time.After(timeout)
+	for i := 0; i < n; i++ {
+		select {
+		case <-m.ch:
+		case <-deadline:
+			return false
+		}
+	}
+	return true
+}
+
+// --- Collection Runner Tests ---
+
+func TestEngine_ExecuteCollection_Sequential(t *testing.T) {
+	var callOrder []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callOrder = append(callOrder, r.URL.Path)
+		w.WriteHeader(200)
+		fmt.Fprint(w, "ok")
+	}))
+	defer srv.Close()
+
+	collSvc := &mockCollectionFinder{
+		requests: map[string]*collection.ResolvedRequest{
+			"api/health":    {URL: srv.URL + "/health", Method: "GET"},
+			"api/get-users": {URL: srv.URL + "/users", Method: "GET"},
+		},
+	}
+	collGetter := &mockCollectionGetter{
+		collections: map[string]*collection.Collection{
+			"api": {
+				Name: "API",
+				Requests: []collection.Request{
+					{ID: "health", Method: "GET", Path: "/health"},
+					{ID: "get-users", Method: "GET", Path: "/users"},
+				},
+			},
+		},
+	}
+	envSvc := &mockEnvironmentResolver{activeErr: fmt.Errorf("no active env")}
+	engine := NewEngine(collSvc, envSvc, WithCollectionGetter(collGetter))
+
+	results, err := engine.ExecuteCollection(context.Background(), CollectionRunOpts{
+		CollectionID: "api",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("got %d results, want 2", len(results))
+	}
+	for i, r := range results {
+		if r.Status != 200 {
+			t.Errorf("result[%d].Status = %d, want 200", i, r.Status)
+		}
+		if r.Error != "" {
+			t.Errorf("result[%d].Error = %q, want empty", i, r.Error)
+		}
+	}
+	if len(callOrder) != 2 {
+		t.Fatalf("server received %d calls, want 2", len(callOrder))
+	}
+}
+
+func TestEngine_ExecuteCollection_StopOnError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+	}))
+	defer srv.Close()
+
+	// First request will fail (bad URL), second should not execute.
+	collSvc := &mockCollectionFinder{
+		requests: map[string]*collection.ResolvedRequest{
+			"api/bad":  {URL: "http://127.0.0.1:1/fail", Method: "GET"},
+			"api/good": {URL: srv.URL + "/ok", Method: "GET"},
+		},
+	}
+	collGetter := &mockCollectionGetter{
+		collections: map[string]*collection.Collection{
+			"api": {
+				Name: "API",
+				Requests: []collection.Request{
+					{ID: "bad", Method: "GET", Path: "/fail"},
+					{ID: "good", Method: "GET", Path: "/ok"},
+				},
+			},
+		},
+	}
+	envSvc := &mockEnvironmentResolver{activeErr: fmt.Errorf("no active env")}
+	engine := NewEngine(collSvc, envSvc,
+		WithCollectionGetter(collGetter),
+		WithDefaultTimeout(1*time.Second),
+	)
+
+	results, err := engine.ExecuteCollection(context.Background(), CollectionRunOpts{
+		CollectionID: "api",
+		StopOnError:  true,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1 (should stop on first error)", len(results))
+	}
+	if results[0].Error == "" {
+		t.Error("first result should have an error")
+	}
+}
+
+func TestEngine_ExecuteCollection_ContinueOnError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		fmt.Fprint(w, "ok")
+	}))
+	defer srv.Close()
+
+	collSvc := &mockCollectionFinder{
+		requests: map[string]*collection.ResolvedRequest{
+			"api/bad":  {URL: "http://127.0.0.1:1/fail", Method: "GET"},
+			"api/good": {URL: srv.URL + "/ok", Method: "GET"},
+		},
+	}
+	collGetter := &mockCollectionGetter{
+		collections: map[string]*collection.Collection{
+			"api": {
+				Name: "API",
+				Requests: []collection.Request{
+					{ID: "bad", Method: "GET", Path: "/fail"},
+					{ID: "good", Method: "GET", Path: "/ok"},
+				},
+			},
+		},
+	}
+	envSvc := &mockEnvironmentResolver{activeErr: fmt.Errorf("no active env")}
+	engine := NewEngine(collSvc, envSvc,
+		WithCollectionGetter(collGetter),
+		WithDefaultTimeout(1*time.Second),
+	)
+
+	results, err := engine.ExecuteCollection(context.Background(), CollectionRunOpts{
+		CollectionID: "api",
+		StopOnError:  false,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("got %d results, want 2 (should continue past error)", len(results))
+	}
+	if results[0].Error == "" {
+		t.Error("first result should have an error")
+	}
+	if results[1].Status != 200 {
+		t.Errorf("second result status = %d, want 200", results[1].Status)
+	}
+}
+
+func TestEngine_ExecuteCollection_EmptyCollection(t *testing.T) {
+	collSvc := &mockCollectionFinder{}
+	collGetter := &mockCollectionGetter{
+		collections: map[string]*collection.Collection{
+			"empty": {Name: "Empty"},
+		},
+	}
+	envSvc := &mockEnvironmentResolver{activeErr: fmt.Errorf("no active env")}
+	engine := NewEngine(collSvc, envSvc, WithCollectionGetter(collGetter))
+
+	results, err := engine.ExecuteCollection(context.Background(), CollectionRunOpts{
+		CollectionID: "empty",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 0 {
+		t.Errorf("got %d results, want 0 for empty collection", len(results))
+	}
+}
+
+func TestEngine_ExecuteCollection_NestedFolders(t *testing.T) {
+	var receivedPaths []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedPaths = append(receivedPaths, r.URL.Path)
+		w.WriteHeader(200)
+	}))
+	defer srv.Close()
+
+	collSvc := &mockCollectionFinder{
+		requests: map[string]*collection.ResolvedRequest{
+			"api/health":             {URL: srv.URL + "/health", Method: "GET"},
+			"api/admin/list-admins":  {URL: srv.URL + "/admin/list", Method: "GET"},
+			"api/admin/settings/get": {URL: srv.URL + "/admin/settings", Method: "GET"},
+		},
+	}
+	collGetter := &mockCollectionGetter{
+		collections: map[string]*collection.Collection{
+			"api": {
+				Name: "API",
+				Requests: []collection.Request{
+					{ID: "health", Method: "GET", Path: "/health"},
+				},
+				Folders: []collection.Folder{
+					{
+						ID:   "admin",
+						Name: "Admin",
+						Requests: []collection.Request{
+							{ID: "list-admins", Method: "GET", Path: "/admin/list"},
+						},
+						Folders: []collection.Folder{
+							{
+								ID:   "settings",
+								Name: "Settings",
+								Requests: []collection.Request{
+									{ID: "get", Method: "GET", Path: "/admin/settings"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	envSvc := &mockEnvironmentResolver{activeErr: fmt.Errorf("no active env")}
+	engine := NewEngine(collSvc, envSvc, WithCollectionGetter(collGetter))
+
+	results, err := engine.ExecuteCollection(context.Background(), CollectionRunOpts{
+		CollectionID: "api",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 3 {
+		t.Fatalf("got %d results, want 3", len(results))
+	}
+	for _, r := range results {
+		if r.Status != 200 {
+			t.Errorf("result %q status = %d, want 200", r.RequestID, r.Status)
+		}
+	}
+}
+
+func TestEngine_ExecuteCollection_HistoryAppenderCalled(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		fmt.Fprint(w, "ok")
+	}))
+	defer srv.Close()
+
+	collSvc := &mockCollectionFinder{
+		requests: map[string]*collection.ResolvedRequest{
+			"api/r1": {URL: srv.URL + "/r1", Method: "GET"},
+			"api/r2": {URL: srv.URL + "/r2", Method: "GET"},
+		},
+	}
+	collGetter := &mockCollectionGetter{
+		collections: map[string]*collection.Collection{
+			"api": {
+				Name: "API",
+				Requests: []collection.Request{
+					{ID: "r1", Method: "GET", Path: "/r1"},
+					{ID: "r2", Method: "GET", Path: "/r2"},
+				},
+			},
+		},
+	}
+	envSvc := &mockEnvironmentResolver{activeErr: fmt.Errorf("no active env")}
+	history := newMockHistoryAppender(2)
+	engine := NewEngine(collSvc, envSvc,
+		WithCollectionGetter(collGetter),
+		WithHistoryAppender(history),
+	)
+
+	results, err := engine.ExecuteCollection(context.Background(), CollectionRunOpts{
+		CollectionID: "api",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("got %d results, want 2", len(results))
+	}
+
+	// Wait for async history appends (fire-and-forget goroutines).
+	if !history.waitFor(2, 2*time.Second) {
+		t.Fatalf("history appender received %d entries, want 2 (timed out)", len(history.entries))
+	}
+	if len(history.entries) != 2 {
+		t.Errorf("history has %d entries, want 2", len(history.entries))
+	}
+}
+
+func TestEngine_ExecuteCollection_NotFoundError(t *testing.T) {
+	collSvc := &mockCollectionFinder{}
+	collGetter := &mockCollectionGetter{
+		err: fmt.Errorf("collection not found"),
+	}
+	envSvc := &mockEnvironmentResolver{activeErr: fmt.Errorf("no active env")}
+	engine := NewEngine(collSvc, envSvc, WithCollectionGetter(collGetter))
+
+	_, err := engine.ExecuteCollection(context.Background(), CollectionRunOpts{
+		CollectionID: "missing",
+	})
+	if err == nil {
+		t.Fatal("expected error for missing collection")
+	}
+	if !strings.Contains(err.Error(), "loading collection") {
+		t.Errorf("error should mention loading collection, got: %v", err)
+	}
+}
+
+// --- collectRequestPaths tests ---
+
+func TestCollectRequestPaths(t *testing.T) {
+	c := &collection.Collection{
+		Name: "Test",
+		Requests: []collection.Request{
+			{ID: "root-req"},
+		},
+		Folders: []collection.Folder{
+			{
+				ID:   "auth",
+				Name: "Auth",
+				Requests: []collection.Request{
+					{ID: "login"},
+					{ID: "logout"},
+				},
+				Folders: []collection.Folder{
+					{
+						ID:   "admin",
+						Name: "Admin",
+						Requests: []collection.Request{
+							{ID: "create-user"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	paths := collectRequestPaths(c)
+
+	expected := []string{
+		"root-req",
+		"auth/login",
+		"auth/logout",
+		"auth/admin/create-user",
+	}
+
+	if len(paths) != len(expected) {
+		t.Fatalf("got %d paths, want %d: %v", len(paths), len(expected), paths)
+	}
+	for i, p := range paths {
+		if p != expected[i] {
+			t.Errorf("path[%d] = %q, want %q", i, p, expected[i])
+		}
+	}
+}
