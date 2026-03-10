@@ -24,6 +24,9 @@ const (
 
 	// Test execution errors (M4)
 	CodeTestExecutionError = "TEST_EXECUTION_ERROR"
+	CodeSandboxViolation   = "SANDBOX_VIOLATION"
+	CodeTestTimeout        = "TEST_TIMEOUT"
+	CodeScriptParse        = "SCRIPT_PARSE"
 
 	// Import/export errors (M11)
 	CodeImportFailed = "IMPORT_FAILED"
@@ -48,10 +51,12 @@ func HTTPStatusForCode(code string) int {
 	switch code {
 	case CodeCollectionNotFound, CodeRequestNotFound, CodeEnvNotFound, CodeNotFound:
 		return http.StatusNotFound
-	case CodeEnvNotSet, CodeInvalidYAML, CodeInvalidRequest, CodeInvalidInput,
+	case CodeSandboxViolation:
+		return http.StatusForbidden
+	case CodeEnvNotSet, CodeInvalidYAML, CodeInvalidRequest, CodeInvalidInput, CodeScriptParse,
 		CodeImportFailed, CodeExportFailed:
 		return http.StatusBadRequest
-	case CodeRequestTimeout:
+	case CodeRequestTimeout, CodeTestTimeout:
 		return http.StatusRequestTimeout
 	case CodeRequestFailed:
 		return http.StatusBadGateway
