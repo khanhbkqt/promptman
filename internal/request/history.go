@@ -13,8 +13,12 @@ type HistoryEntry struct {
 }
 
 // HistoryAppender appends request execution results to a history log.
-// Implementations must be safe for concurrent use since Append is
-// called from a goroutine (fire-and-forget) for non-blocking operation.
+//
+// Implementations MUST be safe for concurrent use: Append is invoked
+// from a fire-and-forget goroutine inside Execute, so multiple calls to
+// Append may occur simultaneously (e.g., when ExecuteCollection runs
+// several requests in a loop). Concrete implementations must protect
+// shared state with synchronization primitives such as sync.Mutex.
 type HistoryAppender interface {
 	Append(entry HistoryEntry)
 }

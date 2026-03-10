@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -566,7 +567,11 @@ func (m *mockCollectionGetter) Get(id string) (*collection.Collection, error) {
 	return c, nil
 }
 
+// mockHistoryAppender is a goroutine-safe HistoryAppender for tests.
+// The mu guard is required because Append is called from fire-and-forget
+// goroutines in engine.go and may be invoked concurrently.
 type mockHistoryAppender struct {
+	mu      sync.Mutex
 	entries []HistoryEntry
 	ch      chan struct{} // optional signal channel
 }
@@ -578,7 +583,9 @@ func newMockHistoryAppender(expectedCalls int) *mockHistoryAppender {
 }
 
 func (m *mockHistoryAppender) Append(entry HistoryEntry) {
+	m.mu.Lock()
 	m.entries = append(m.entries, entry)
+	m.mu.Unlock()
 	if m.ch != nil {
 		m.ch <- struct{}{}
 	}
