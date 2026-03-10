@@ -23,6 +23,11 @@ type Repository interface {
 	// Get loads a single environment by name (filename without extension).
 	Get(name string) (*Environment, error)
 
+	// GetWithSecrets loads an environment and merges the corresponding .secrets.yaml
+	// file if it exists. Variables from .secrets.yaml override same-name variables
+	// in the base environment. Missing .secrets.yaml is not an error.
+	GetWithSecrets(name string) (*Environment, error)
+
 	// Save persists an environment to disk.
 	// The name determines the filename: <name>.yaml.
 	Save(name string, env *Environment) error
@@ -99,7 +104,7 @@ func (r *FileRepository) List() ([]EnvSummary, error) {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".yaml") {
 			continue
 		}
-		// Skip secrets files — they are merged in a later Story.
+		// Skip secrets files — they are merged via GetWithSecrets.
 		if strings.HasSuffix(e.Name(), ".secrets.yaml") {
 			continue
 		}
@@ -144,6 +149,55 @@ func (r *FileRepository) Get(name string) (*Environment, error) {
 	}
 
 	return &env, nil
+}
+
+// GetWithSecrets loads an environment and merges the corresponding .secrets.yaml
+// file if it exists. Variables from the secrets file override same-name secrets
+// in the base environment. If no .secrets.yaml exists, the base environment
+// is returned unchanged.
+func (r *FileRepository) GetWithSecrets(name string) (*Environment, error) {
+	env, err := r.Get(name)
+	if err != nil {
+		return nil, err
+	}
+
+	dir, err := r.environmentsDir()
+	if err != nil {
+		return nil, err
+	}
+
+	secretsPath := filepath.Join(dir, name+".secrets.yaml")
+
+	var secretsFile Environment
+	if err := fsutil.ReadYAML(secretsPath, &secretsFile); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			// No secrets file — return the base environment as-is.
+			return env, nil
+		}
+		return nil, ErrInvalidYAML.Wrapf("load secrets file for %q: %v", name, err)
+	}
+
+	// Merge secrets: values from .secrets.yaml override base secrets.
+	if len(secretsFile.Secrets) > 0 {
+		if env.Secrets == nil {
+			env.Secrets = make(map[string]string)
+		}
+		for k, v := range secretsFile.Secrets {
+			env.Secrets[k] = v
+		}
+	}
+
+	// Merge variables: values from .secrets.yaml override base variables.
+	if len(secretsFile.Variables) > 0 {
+		if env.Variables == nil {
+			env.Variables = make(map[string]any)
+		}
+		for k, v := range secretsFile.Variables {
+			env.Variables[k] = v
+		}
+	}
+
+	return env, nil
 }
 
 // Save persists an environment to disk.
