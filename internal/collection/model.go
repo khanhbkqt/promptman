@@ -91,3 +91,25 @@ type ResolvedRequest struct {
 	Auth    *AuthConfig       // resolved auth (child overrides parent)
 	Timeout *int              // resolved timeout (child overrides parent)
 }
+
+// CreateCollectionInput holds the data needed to create a new collection.
+// Name is required; all other fields are optional.
+type CreateCollectionInput struct {
+	Name     string
+	BaseURL  string
+	Defaults *RequestDefaults
+	Auth     *AuthConfig
+	Requests []Request
+	Folders  []Folder
+}
+
+// UpdateCollectionInput holds optional fields for partial collection updates.
+// Only non-nil fields are applied; nil fields are left unchanged.
+type UpdateCollectionInput struct {
+	Name     *string
+	BaseURL  *string
+	Defaults *RequestDefaults
+	Auth     *AuthConfig
+	Requests *[]Request
+	Folders  *[]Folder
+}
