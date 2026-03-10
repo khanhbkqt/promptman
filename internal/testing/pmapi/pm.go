@@ -22,6 +22,9 @@ type PM struct {
 	environment         *VariableScope
 	variables           *VariableScope
 	collectionVariables *VariableScope
+	executor            RequestExecutor // optional: for pm.sendRequest
+	collectionID        string          // collection context for sendRequest
+	env                 string          // environment context for sendRequest
 }
 
 // NewPM creates a new PM instance for the given VM and response.
@@ -55,6 +58,13 @@ func (p *PM) Variables() *VariableScope { return p.variables }
 
 // CollectionVariables returns the collection-scoped variable scope.
 func (p *PM) CollectionVariables() *VariableScope { return p.collectionVariables }
+
+// SetExecutor configures a request executor for pm.sendRequest.
+func (p *PM) SetExecutor(executor RequestExecutor, collectionID, env string) {
+	p.executor = executor
+	p.collectionID = collectionID
+	p.env = env
+}
 
 // Tests returns the collected test case results.
 func (p *PM) Tests() []testing.TestCase {
@@ -112,6 +122,11 @@ func (p *PM) InjectInto(vm *goja.Runtime) error {
 	// pm.collectionVariables.get/set
 	if err := obj.Set("collectionVariables", injectScopeObject(vm, p.collectionVariables)); err != nil {
 		return fmt.Errorf("setting pm.collectionVariables: %w", err)
+	}
+
+	// pm.sendRequest(reqIdOrConfig, callback)
+	if err := obj.Set("sendRequest", injectSendRequest(vm, p.executor, p.collectionID, p.env)); err != nil {
+		return fmt.Errorf("setting pm.sendRequest: %w", err)
 	}
 
 	return vm.Set("pm", obj)
