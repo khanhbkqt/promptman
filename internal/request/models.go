@@ -33,6 +33,9 @@ type RequestTiming struct {
 
 // CollectionRunOpts configures how a collection is executed.
 type CollectionRunOpts struct {
-	Environment string         `json:"env,omitempty"`       // environment to use
-	Variables   map[string]any `json:"variables,omitempty"` // runtime variable overrides
+	CollectionID  string         `json:"collection"`              // collection to execute
+	Environment   string         `json:"env,omitempty"`           // environment to use
+	Variables     map[string]any `json:"variables,omitempty"`     // runtime variable overrides
+	StopOnError   bool           `json:"stopOnError,omitempty"`   // stop on first request error
+	SkipTLSVerify bool           `json:"skipTlsVerify,omitempty"` // skip TLS certificate verification
 }
