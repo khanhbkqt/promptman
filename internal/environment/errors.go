@@ -17,6 +17,10 @@ var (
 
 	// ErrInvalidYAML is returned when an environment YAML file cannot be parsed.
 	ErrInvalidYAML = &DomainError{Code: envelope.CodeInvalidYAML, Message: "invalid YAML"}
+
+	// ErrSecretResolveFailed is returned when a $ENV{VAR} reference cannot be resolved
+	// because the OS environment variable is not set.
+	ErrSecretResolveFailed = &DomainError{Code: envelope.CodeSecretResolveFailed, Message: "secret resolution failed"}
 )
 
 // DomainError is a structured error carrying an envelope-compatible error code.

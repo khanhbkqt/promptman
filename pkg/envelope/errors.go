@@ -9,8 +9,9 @@ const (
 	CodeRequestNotFound    = "REQUEST_NOT_FOUND"
 
 	// Environment errors (M2)
-	CodeEnvNotFound = "ENV_NOT_FOUND"
-	CodeEnvNotSet   = "ENV_NOT_SET"
+	CodeEnvNotFound         = "ENV_NOT_FOUND"
+	CodeEnvNotSet           = "ENV_NOT_SET"
+	CodeSecretResolveFailed = "SECRET_RESOLVE_FAILED"
 
 	// Validation errors (multiple modules)
 	CodeInvalidYAML    = "INVALID_YAML"
@@ -50,7 +51,7 @@ func HTTPStatusForCode(code string) int {
 		return http.StatusRequestTimeout
 	case CodeRequestFailed:
 		return http.StatusBadGateway
-	case CodeTestExecutionError, CodeInternalError:
+	case CodeTestExecutionError, CodeInternalError, CodeSecretResolveFailed:
 		return http.StatusInternalServerError
 	case CodeDaemonBusy:
 		return http.StatusTooManyRequests
