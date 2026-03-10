@@ -1,6 +1,8 @@
 package environment
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -234,5 +236,150 @@ func TestService_Resolve_NoTemplate(t *testing.T) {
 	}
 	if got != "https://plain.example.com/api" {
 		t.Errorf("Resolve = %q, want %q", got, "https://plain.example.com/api")
+	}
+}
+
+// --- Integration Tests ---
+
+func TestIntegration_ResolveWithSecretsFile(t *testing.T) {
+	t.Setenv("INTEG_API_KEY", "env-api-key")
+	dir := t.TempDir()
+	svc := NewService(NewFileRepository(dir))
+
+	// Create an environment with an $ENV{} secret.
+	if _, err := svc.Create(&CreateEnvInput{
+		Name:      "staging",
+		Variables: map[string]any{"host": "staging.example.com", "port": 8080},
+		Secrets:   map[string]string{"apiKey": "$ENV{INTEG_API_KEY}"},
+	}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	// Write a .secrets.yaml that overrides the apiKey with a local value.
+	secretsYAML := "secrets:\n  apiKey: local-override-key\n  dbPass: local-db-password\n"
+	if err := os.WriteFile(filepath.Join(dir, "staging.secrets.yaml"), []byte(secretsYAML), 0o644); err != nil {
+		t.Fatalf("write .secrets.yaml: %v", err)
+	}
+
+	if err := svc.SetActive("staging"); err != nil {
+		t.Fatalf("SetActive: %v", err)
+	}
+
+	// Resolve should use .secrets.yaml override values (not $ENV{}).
+	got, err := svc.Resolve("{{host}}:{{port}}/auth?key={{apiKey}}&db={{dbPass}}")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+
+	expected := "staging.example.com:8080/auth?key=local-override-key&db=local-db-password"
+	if got != expected {
+		t.Errorf("Resolve = %q, want %q", got, expected)
+	}
+}
+
+func TestIntegration_ActiveEnvPersistenceAndResolve(t *testing.T) {
+	dir := t.TempDir()
+
+	// Service #1: create env, set active.
+	svc1 := NewService(NewFileRepository(dir))
+	if _, err := svc1.Create(&CreateEnvInput{
+		Name:      "production",
+		Variables: map[string]any{"host": "prod.example.com", "version": "v2"},
+	}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if err := svc1.SetActive("production"); err != nil {
+		t.Fatalf("SetActive: %v", err)
+	}
+
+	// Service #2: new instance — verify active env persists and resolution works.
+	svc2 := NewService(NewFileRepository(dir))
+	got, err := svc2.Resolve("https://{{host}}/api/{{version}}")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+
+	expected := "https://prod.example.com/api/v2"
+	if got != expected {
+		t.Errorf("Resolve = %q, want %q", got, expected)
+	}
+}
+
+func TestIntegration_FullLifecycle(t *testing.T) {
+	t.Setenv("LIFECYCLE_SECRET", "lifecycle-value")
+	dir := t.TempDir()
+	svc := NewService(NewFileRepository(dir))
+
+	// 1. Create two environments.
+	if _, err := svc.Create(&CreateEnvInput{
+		Name:      "dev",
+		Variables: map[string]any{"host": "localhost", "port": 3000, "url": "{{host}}:{{port}}"},
+		Secrets:   map[string]string{"token": "$ENV{LIFECYCLE_SECRET}"},
+	}); err != nil {
+		t.Fatalf("Create dev: %v", err)
+	}
+	if _, err := svc.Create(&CreateEnvInput{
+		Name:      "prod",
+		Variables: map[string]any{"host": "prod.example.com", "port": 443, "url": "{{host}}:{{port}}"},
+	}); err != nil {
+		t.Fatalf("Create prod: %v", err)
+	}
+
+	// 2. No active env → Resolve should fail.
+	if _, err := svc.Resolve("{{host}}"); !IsDomainError(err, "ENV_NOT_SET") {
+		t.Errorf("expected ENV_NOT_SET, got: %v", err)
+	}
+
+	// 3. Set active to dev, resolve with nested vars + secrets.
+	if err := svc.SetActive("dev"); err != nil {
+		t.Fatalf("SetActive dev: %v", err)
+	}
+
+	got, err := svc.Resolve("{{url}}/api?token={{token}}")
+	if err != nil {
+		t.Fatalf("Resolve dev: %v", err)
+	}
+	if got != "localhost:3000/api?token=lifecycle-value" {
+		t.Errorf("Resolve dev = %q, want %q", got, "localhost:3000/api?token=lifecycle-value")
+	}
+
+	// 4. ResolveWith prod (without changing active).
+	got, err = svc.ResolveWith("{{url}}", "prod")
+	if err != nil {
+		t.Fatalf("ResolveWith prod: %v", err)
+	}
+	if got != "prod.example.com:443" {
+		t.Errorf("ResolveWith prod = %q, want %q", got, "prod.example.com:443")
+	}
+
+	// 5. Active should still be dev.
+	active, err := svc.GetActive()
+	if err != nil {
+		t.Fatalf("GetActive: %v", err)
+	}
+	if active != "dev" {
+		t.Errorf("active = %q, want %q", active, "dev")
+	}
+
+	// 6. Switch active to prod, resolve again.
+	if err := svc.SetActive("prod"); err != nil {
+		t.Fatalf("SetActive prod: %v", err)
+	}
+	got, err = svc.Resolve("{{url}}")
+	if err != nil {
+		t.Fatalf("Resolve prod: %v", err)
+	}
+	if got != "prod.example.com:443" {
+		t.Errorf("Resolve prod = %q, want %q", got, "prod.example.com:443")
+	}
+
+	// 7. Extra scopes override env vars.
+	extra := map[string]any{"host": "custom-host", "port": 9999}
+	got, err = svc.Resolve("{{host}}:{{port}}", extra)
+	if err != nil {
+		t.Fatalf("Resolve with extra: %v", err)
+	}
+	if got != "custom-host:9999" {
+		t.Errorf("Resolve with extra = %q, want %q", got, "custom-host:9999")
 	}
 }
