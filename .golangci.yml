@@ -1,0 +1,33 @@
+linters:
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - unused
+    - gosimple
+    - ineffassign
+    - typecheck
+    - gocritic
+    - gofmt
+    - misspell
+
+linters-settings:
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+  errcheck:
+    check-type-assertions: true
+  govet:
+    enable-all: true
+
+issues:
+  exclude-rules:
+    # Exclude doc.go placeholder files from linting
+    - path: doc\.go
+      linters:
+        - unused
+
+run:
+  timeout: 5m
