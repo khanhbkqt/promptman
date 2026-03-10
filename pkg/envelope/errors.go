@@ -30,7 +30,11 @@ const (
 	CodeExportFailed = "EXPORT_FAILED"
 
 	// Daemon errors
-	CodeDaemonBusy = "DAEMON_BUSY"
+	CodeDaemonBusy           = "DAEMON_BUSY"
+	CodeDaemonAlreadyRunning = "DAEMON_ALREADY_RUNNING"
+	CodeDaemonNotRunning     = "DAEMON_NOT_RUNNING"
+	CodeLockFileCorrupt      = "LOCK_FILE_CORRUPT"
+	CodePortUnavailable      = "PORT_UNAVAILABLE"
 
 	// Generic errors
 	CodeInternalError = "INTERNAL_ERROR"
@@ -55,6 +59,12 @@ func HTTPStatusForCode(code string) int {
 		return http.StatusInternalServerError
 	case CodeDaemonBusy:
 		return http.StatusTooManyRequests
+	case CodeDaemonAlreadyRunning:
+		return http.StatusConflict
+	case CodeDaemonNotRunning, CodeLockFileCorrupt:
+		return http.StatusBadRequest
+	case CodePortUnavailable:
+		return http.StatusServiceUnavailable
 	case CodeUnauthorized:
 		return http.StatusUnauthorized
 	default:
