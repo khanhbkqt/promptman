@@ -2,6 +2,8 @@
 // The CLI is a Cobra-based thin client that communicates with the daemon.
 package main
 
+import "github.com/khanhnguyen/promptman/internal/cli"
+
 func main() {
-	// TODO: Phase 1 — Cobra root command, subcommands (run, env, collection)
+	cli.Execute()
 }
