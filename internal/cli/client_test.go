@@ -3,11 +3,8 @@ package cli_test
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"strconv"
 	"testing"
 	"time"
 
@@ -16,53 +13,25 @@ import (
 	"github.com/khanhnguyen/promptman/pkg/envelope"
 )
 
-// writeTestLockFile writes a .daemon.lock file pointing at the given port.
-// It uses the current process PID so IsPIDAlive returns true during tests.
-func writeTestLockFile(t *testing.T, dir string, port int, token string) {
+// newTestClient creates an httptest.Server and a Client that communicates with
+// it via the server's loopback transport.  This avoids the IPv4/IPv6 mismatch
+// that occurs when httptest.NewServer binds to [::1] but NewClient hardcodes
+// 127.0.0.1 — and also avoids ephemeral port exhaustion when many tests in the
+// package run in parallel.
+//
+// The handler is called for every request; the returned Client is ready to use.
+func newTestClient(t *testing.T, handler http.Handler) (*httptest.Server, *cli.Client) {
 	t.Helper()
-	info := &daemon.DaemonInfo{
-		PID:        os.Getpid(),
-		Port:       port,
-		Token:      token,
-		ProjectDir: dir,
-		StartedAt:  time.Now(),
-	}
-	if err := daemon.WriteLockFile(dir, info); err != nil {
-		t.Fatalf("writeTestLockFile: %v", err)
-	}
-	t.Cleanup(func() { _ = daemon.DeleteLockFile(dir) })
+	srv := httptest.NewServer(handler)
+	t.Cleanup(srv.Close)
+
+	c := cli.NewClientDirect(srv.URL+"/api/v1", "test-token", srv.Client())
+	return srv, c
 }
 
-// newEnvelopeServer starts an httptest server that responds with the given envelope.
-// It validates the Authorization Bearer token on every request.
-func newEnvelopeServer(t *testing.T, env *envelope.Envelope, token string) *httptest.Server {
-	t.Helper()
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		auth := r.Header.Get("Authorization")
-		if auth != "Bearer "+token {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(env)
-	}))
-}
-
-// extractPort parses the port number from an httptest server URL.
-func extractPort(t *testing.T, rawURL string) int {
-	t.Helper()
-	// URL has the form "http://127.0.0.1:PORT".
-	addr := rawURL[len("http://"):]
-	_, portStr, err := net.SplitHostPort(addr)
-	if err != nil {
-		t.Fatalf("extractPort: SplitHostPort(%q): %v", addr, err)
-	}
-	port, err := strconv.Atoi(portStr)
-	if err != nil {
-		t.Fatalf("extractPort: Atoi(%q): %v", portStr, err)
-	}
-	return port
-}
+// -----------------------------------------------------------------------
+// NewClient tests — validate lock-file / PID-alive checks (no server needed)
+// -----------------------------------------------------------------------
 
 func TestNewClient_NoLockFile(t *testing.T) {
 	dir := t.TempDir()
@@ -97,20 +66,17 @@ func TestNewClient_DeadPID(t *testing.T) {
 	}
 }
 
+// -----------------------------------------------------------------------
+// Client.Get / Post / Put tests — use loopback transport via NewClientDirect
+// -----------------------------------------------------------------------
+
 func TestClient_Get_Success(t *testing.T) {
-	const token = "test-token-abc"
 	expected := envelope.Success(map[string]string{"status": "ok"})
-	srv := newEnvelopeServer(t, expected, token)
-	defer srv.Close()
 
-	port := extractPort(t, srv.URL)
-	dir := t.TempDir()
-	writeTestLockFile(t, dir, port, token)
-
-	c, err := cli.NewClient(dir)
-	if err != nil {
-		t.Fatalf("NewClient: %v", err)
-	}
+	_, c := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(expected)
+	}))
 
 	env, err := c.Get("/status")
 	if err != nil {
@@ -122,19 +88,12 @@ func TestClient_Get_Success(t *testing.T) {
 }
 
 func TestClient_Post_Success(t *testing.T) {
-	const token = "post-token-xyz"
 	expected := envelope.Success("created")
-	srv := newEnvelopeServer(t, expected, token)
-	defer srv.Close()
 
-	port := extractPort(t, srv.URL)
-	dir := t.TempDir()
-	writeTestLockFile(t, dir, port, token)
-
-	c, err := cli.NewClient(dir)
-	if err != nil {
-		t.Fatalf("NewClient: %v", err)
-	}
+	_, c := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(expected)
+	}))
 
 	env, err := c.Post("/run", map[string]string{"request": "users/health"})
 	if err != nil {
@@ -146,21 +105,19 @@ func TestClient_Post_Success(t *testing.T) {
 }
 
 func TestClient_Get_WrongToken(t *testing.T) {
-	// Server expects "real-token" but lock file has "wrong-token".
-	srv := newEnvelopeServer(t, envelope.Success("ok"), "real-token")
-	defer srv.Close()
-
-	port := extractPort(t, srv.URL)
-	dir := t.TempDir()
-	writeTestLockFile(t, dir, port, "wrong-token")
-
-	c, err := cli.NewClient(dir)
-	if err != nil {
-		t.Fatalf("NewClient: %v", err)
-	}
+	// Server expects "real-token" but client sends "test-token" (from newTestClient).
+	_, c := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth := r.Header.Get("Authorization")
+		if auth != "Bearer real-token" {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(envelope.Success("ok"))
+	}))
 
 	// Server returns 401 with plain text → cannot decode as envelope → decode error.
-	_, err = c.Get("/status")
+	_, err := c.Get("/status")
 	if err == nil {
 		t.Fatal("expected error on wrong token, got nil")
 	}
@@ -170,26 +127,12 @@ func TestClient_Get_WrongToken(t *testing.T) {
 }
 
 func TestClient_Get_DaemonUnreachable(t *testing.T) {
-	dir := t.TempDir()
-	// Write lock using current PID (alive) but port 1 (nothing listening).
-	info := &daemon.DaemonInfo{
-		PID:        os.Getpid(),
-		Port:       1,
-		Token:      "tok",
-		ProjectDir: dir,
-		StartedAt:  time.Now(),
-	}
-	if err := daemon.WriteLockFile(dir, info); err != nil {
-		t.Fatalf("setup: %v", err)
-	}
-	t.Cleanup(func() { _ = daemon.DeleteLockFile(dir) })
+	// Create a client that points to a server that's already closed.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	c := cli.NewClientDirect(srv.URL+"/api/v1", "tok", &http.Client{Timeout: 1 * time.Second})
+	srv.Close() // Close immediately so requests fail.
 
-	c, err := cli.NewClient(dir)
-	if err != nil {
-		t.Fatalf("NewClient: %v", err)
-	}
-
-	_, err = c.Get("/status")
+	_, err := c.Get("/status")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -197,6 +140,10 @@ func TestClient_Get_DaemonUnreachable(t *testing.T) {
 		t.Errorf("expected CLI_DAEMON_UNREACHABLE, got %v", err)
 	}
 }
+
+// -----------------------------------------------------------------------
+// IsCLIError utility tests
+// -----------------------------------------------------------------------
 
 func TestIsCLIError(t *testing.T) {
 	tests := []struct {

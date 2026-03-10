@@ -52,6 +52,17 @@ func NewClient(projectDir string) (*Client, error) {
 	}, nil
 }
 
+// NewClientDirect creates a Client with explicit baseURL, token, and http.Client.
+// This is intended for tests that provide a pre-configured httptest.Server
+// transport, bypassing lock-file discovery and PID validation.
+func NewClientDirect(baseURL, token string, httpClient *http.Client) *Client {
+	return &Client{
+		baseURL:    baseURL,
+		token:      token,
+		httpClient: httpClient,
+	}
+}
+
 // Get sends a GET request to the daemon at the given API path (e.g. "/status").
 // Returns the parsed envelope.Envelope or a *CLIError on failure.
 func (c *Client) Get(path string) (*envelope.Envelope, error) {
