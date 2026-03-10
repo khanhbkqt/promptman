@@ -17,6 +17,9 @@ var (
 
 	// ErrInvalidRequest is returned when a request or collection fails validation.
 	ErrInvalidRequest = &DomainError{Code: envelope.CodeInvalidRequest, Message: "invalid request"}
+
+	// ErrRequestNotFound is returned when a request path does not exist in the collection.
+	ErrRequestNotFound = &DomainError{Code: envelope.CodeRequestNotFound, Message: "request not found"}
 )
 
 // DomainError is a structured error carrying an envelope-compatible error code.

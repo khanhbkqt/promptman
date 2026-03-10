@@ -78,3 +78,16 @@ type RequestBody struct {
 	Type    string `yaml:"type"` // e.g. "json", "form", "raw"
 	Content any    `yaml:"content,omitempty"`
 }
+
+// ResolvedRequest is the output of the defaults resolution chain.
+// It contains a fully merged request ready for execution, with URL assembled
+// from baseUrl + path, headers merged from the inheritance chain, and the
+// winning auth and timeout values.
+type ResolvedRequest struct {
+	URL     string            // baseUrl + request.path
+	Method  string            // HTTP method (GET, POST, etc.)
+	Headers map[string]string // merged headers: collection → folder(s) → request
+	Body    *RequestBody      // request body (not inherited)
+	Auth    *AuthConfig       // resolved auth (child overrides parent)
+	Timeout *int              // resolved timeout (child overrides parent)
+}
