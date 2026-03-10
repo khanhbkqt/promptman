@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -95,15 +96,22 @@ Run HTTP requests, manage environments, and automate API workflows.`,
 
 	// Register subcommands.
 	root.AddCommand(newVersionCommand(flags))
+	root.AddCommand(newRunCommand(flags))
 
 	return root
 }
 
 // Execute is the entry point called from cmd/cli/main.go.
-// It builds the root command and executes it, exiting with code 1 on error.
+// It builds the root command and executes it.
+// If the command returns an ExitError, it exits with the embedded code.
+// For other errors, it prints the error and exits with code 1.
 func Execute() {
 	root := NewRootCommand()
 	if err := root.Execute(); err != nil {
+		var exitErr *ExitError
+		if errors.As(err, &exitErr) {
+			os.Exit(exitErr.Code)
+		}
 		fmt.Fprintln(os.Stderr, "Error:", err)
 		os.Exit(1)
 	}
