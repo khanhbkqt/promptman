@@ -118,7 +118,9 @@ func (er *EnvironmentRegistrar) handleSetActive() http.HandlerFunc {
 	}
 }
 
-// handleUpdate handles PUT /api/v1/environments/{name} — update environment variables.
+// handleUpdate handles PUT /api/v1/environments/{name} — upsert environment variables.
+// If the environment already exists it is updated (HTTP 200).
+// If the environment does not yet exist it is created (HTTP 201) — PUT is idempotent upsert.
 func (er *EnvironmentRegistrar) handleUpdate() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		name := r.PathValue("name")
@@ -137,6 +139,24 @@ func (er *EnvironmentRegistrar) handleUpdate() http.HandlerFunc {
 
 		env, err := er.svc.Update(name, &input)
 		if err != nil {
+			// If the environment doesn't exist yet, create it (upsert semantics).
+			de, ok := err.(*environment.DomainError)
+			if ok && de.Code == envelope.CodeEnvNotFound {
+				createInput := &environment.CreateEnvInput{Name: name}
+				if input.Variables != nil {
+					createInput.Variables = *input.Variables
+				}
+				if input.Secrets != nil {
+					createInput.Secrets = *input.Secrets
+				}
+				created, createErr := er.svc.Create(createInput)
+				if createErr != nil {
+					er.writeEnvError(w, createErr)
+					return
+				}
+				envelope.WriteSuccess(w, http.StatusCreated, created)
+				return
+			}
 			er.writeEnvError(w, err)
 			return
 		}

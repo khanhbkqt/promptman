@@ -285,22 +285,64 @@ func TestHandleUpdateEnvironment(t *testing.T) {
 	}
 }
 
-func TestHandleUpdateEnvironment_NotFound(t *testing.T) {
+// TestHandleUpdateEnvironment_PutNewEnv verifies that PUT /environments/{name}
+// creates the environment when it does not yet exist (upsert semantics, HTTP 201).
+func TestHandleUpdateEnvironment_PutNewEnv(t *testing.T) {
 	mux, _ := setupEnvHandler(t)
 
-	input := map[string]any{"variables": map[string]any{"key": "val"}}
+	newVars := map[string]any{"BASE_URL": "https://api.dev.example.com"}
+	input := map[string]any{"variables": newVars}
 	body, _ := json.Marshal(input)
 
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/environments/nonexistent", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/environments/dev-new", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
+
+	// Should return 201 Created, not 404.
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d (upsert should create); body: %s", w.Code, http.StatusCreated, w.Body.String())
+	}
 
 	var env envelope.Envelope
 	if err := json.Unmarshal(w.Body.Bytes(), &env); err != nil {
 		t.Fatalf("decoding response: %v", err)
 	}
-	if env.OK {
-		t.Fatal("expected ok=false for nonexistent env")
+	if !env.OK {
+		t.Fatalf("expected ok=true for upsert, got error: %+v", env.Error)
+	}
+
+	// Verify the returned environment has the correct name and variables.
+	raw, _ := json.Marshal(env.Data)
+	var envData map[string]any
+	if err := json.Unmarshal(raw, &envData); err != nil {
+		t.Fatalf("decoding env data: %v", err)
+	}
+	if envData["name"] != "dev-new" {
+		t.Errorf("name = %v, want dev-new", envData["name"])
+	}
+	vars, ok := envData["variables"].(map[string]any)
+	if !ok {
+		t.Fatal("expected variables map in response")
+	}
+	if vars["BASE_URL"] != "https://api.dev.example.com" {
+		t.Errorf("BASE_URL = %v, want https://api.dev.example.com", vars["BASE_URL"])
+	}
+}
+
+// TestHandleUpdateEnvironment_PutExistingEnvReturns200 verifies that PUT to an
+// existing environment returns 200 OK (not 201), preserving the update path.
+func TestHandleUpdateEnvironment_PutExistingEnvReturns200(t *testing.T) {
+	mux, _ := setupEnvHandler(t)
+
+	input := map[string]any{"variables": map[string]any{"host": "newhost"}}
+	body, _ := json.Marshal(input)
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/environments/dev", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d for existing env update; body: %s", w.Code, http.StatusOK, w.Body.String())
 	}
 }
