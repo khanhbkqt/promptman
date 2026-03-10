@@ -100,8 +100,44 @@ Run HTTP requests, manage environments, and automate API workflows.`,
 	root.AddCommand(newEnvCommand(flags))
 	root.AddCommand(newInitCommand(flags))
 	root.AddCommand(newStatusCommand(flags))
+	root.AddCommand(newDaemonCommand())
 
 	return root
+}
+
+// newDaemonCommand returns a hidden "daemon" subcommand used internally by
+// spawnDaemon() in autostart.go. When the CLI binary spawns itself as a
+// background process for auto-start, it calls the CLI binary with:
+//
+//	promptman daemon start --project-dir <dir>
+//
+// The command is intentionally hidden from normal help output. Its only
+// child is "start", which runs the full daemon service graph in-process.
+func newDaemonCommand() *cobra.Command {
+	daemonCmd := &cobra.Command{
+		Use:    "daemon",
+		Hidden: true,
+		Short:  "Internal daemon management (used by auto-start)",
+		// Override PersistentPreRunE so the root's format-validation hook does
+		// not apply here. The daemon subprocess never passes --format.
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return nil
+		},
+	}
+
+	var projectDir string
+
+	startCmd := &cobra.Command{
+		Use:   "start",
+		Short: "Start the daemon (internal: called by CLI auto-start)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runDaemonStart(projectDir)
+		},
+	}
+	startCmd.Flags().StringVar(&projectDir, "project-dir", ".", "Project directory")
+
+	daemonCmd.AddCommand(startCmd)
+	return daemonCmd
 }
 
 // Execute is the entry point called from cmd/cli/main.go.

@@ -16,6 +16,13 @@ build:
 build-cli:
 	go build -ldflags "$(LDFLAGS)" -o bin/promptman ./cmd/cli
 
+# Build daemon binary
+build-daemon:
+	go build -o bin/promptman-daemon ./cmd/daemon
+
+# Build all binaries
+build-all: build-cli build-daemon
+
 
 # Run all tests
 test:
