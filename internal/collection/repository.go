@@ -1,6 +1,7 @@
 package collection
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -126,7 +127,7 @@ func (r *FileRepository) Get(id string) (*Collection, error) {
 
 	var c Collection
 	if err := fsutil.ReadYAML(path, &c); err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return nil, ErrCollectionNotFound.Wrapf("collection %q not found", id)
 		}
 		return nil, ErrInvalidYAML.Wrapf("load collection %q: %v", id, err)
