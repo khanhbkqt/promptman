@@ -2,10 +2,11 @@ package request
 
 // ExecuteInput holds the parameters needed to execute a single HTTP request.
 type ExecuteInput struct {
-	CollectionID string         `json:"collection"`          // collection identifier
-	RequestID    string         `json:"requestId"`           // request path within collection
-	Environment  string         `json:"env,omitempty"`       // override active environment
-	Variables    map[string]any `json:"variables,omitempty"` // runtime variable overrides
+	CollectionID  string         `json:"collection"`              // collection identifier
+	RequestID     string         `json:"requestId"`               // request path within collection
+	Environment   string         `json:"env,omitempty"`           // override active environment
+	Variables     map[string]any `json:"variables,omitempty"`     // runtime variable overrides
+	SkipTLSVerify bool           `json:"skipTlsVerify,omitempty"` // skip TLS certificate verification
 }
 
 // Response holds the complete result of an HTTP request execution.
