@@ -33,6 +33,11 @@ const (
 	CodeProfileNotFound = "PROFILE_NOT_FOUND"
 	CodeRuleLoadFailed  = "RULE_LOAD_FAILED"
 
+	// History errors (M7)
+	CodeHistoryCorrupted   = "HISTORY_CORRUPTED"
+	CodeHistoryNotFound    = "HISTORY_NOT_FOUND"
+	CodeHistoryWriteFailed = "HISTORY_WRITE_FAILED"
+
 	// Import/export errors (M11)
 	CodeImportFailed = "IMPORT_FAILED"
 	CodeExportFailed = "EXPORT_FAILED"
@@ -54,7 +59,7 @@ const (
 // Returns 500 for unknown codes.
 func HTTPStatusForCode(code string) int {
 	switch code {
-	case CodeCollectionNotFound, CodeRequestNotFound, CodeEnvNotFound, CodeNotFound:
+	case CodeCollectionNotFound, CodeRequestNotFound, CodeEnvNotFound, CodeNotFound, CodeHistoryNotFound:
 		return http.StatusNotFound
 	case CodeSandboxViolation:
 		return http.StatusForbidden
@@ -67,7 +72,8 @@ func HTTPStatusForCode(code string) int {
 		return http.StatusRequestTimeout
 	case CodeRequestFailed:
 		return http.StatusBadGateway
-	case CodeTestExecutionError, CodeInternalError, CodeSecretResolveFailed:
+	case CodeTestExecutionError, CodeInternalError, CodeSecretResolveFailed,
+		CodeHistoryCorrupted, CodeHistoryWriteFailed:
 		return http.StatusInternalServerError
 	case CodeDaemonBusy:
 		return http.StatusTooManyRequests
