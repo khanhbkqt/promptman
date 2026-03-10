@@ -291,3 +291,62 @@ func TestRequestRegistrar_RegisterRoutes(t *testing.T) {
 		t.Error("POST /api/v1/run should be registered (got 404)")
 	}
 }
+
+// TestHandleRunSingle_CollectionNotFound verifies that POST /run returns HTTP 404
+// with COLLECTION_NOT_FOUND when the collection does not exist, not HTTP 500.
+func TestHandleRunSingle_CollectionNotFound(t *testing.T) {
+	// Use collection.DomainError as the real service would return.
+	collSvc := &mockCollectionFinder{err: collection.ErrCollectionNotFound.Wrapf("collection %q not found", "no-such")}
+	envSvc := &mockEnvironmentResolver{activeErr: fmt.Errorf("no active env")}
+	engine := request.NewEngine(collSvc, envSvc, request.WithDefaultTimeout(5*time.Second))
+	reg := NewRequestRegistrar(engine)
+
+	body := map[string]any{
+		"collection": "no-such",
+		"requestId":  "req1",
+	}
+	w := callHandler(reg.handleRunSingle(), body)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404 (COLLECTION_NOT_FOUND); body: %s", w.Code, w.Body.String())
+	}
+	env := decodeEnvelope(w)
+	if env.OK {
+		t.Error("envelope.OK should be false")
+	}
+	if env.Error == nil || env.Error.Code != envelope.CodeCollectionNotFound {
+		t.Errorf("expected COLLECTION_NOT_FOUND error code, got: %v", env.Error)
+	}
+}
+
+// TestHandleRunCollection_CollectionNotFound verifies that POST /run/collection
+// returns HTTP 404 with COLLECTION_NOT_FOUND when the collection does not exist.
+func TestHandleRunCollection_CollectionNotFound(t *testing.T) {
+	collSvc := &mockCollectionFinder{}
+	collGetter := &mockCollectionGetter{err: collection.ErrCollectionNotFound.Wrapf("collection %q not found", "no-such")}
+	envSvc := &mockEnvironmentResolver{activeErr: fmt.Errorf("no active env")}
+	engine := request.NewEngine(collSvc, envSvc,
+		request.WithCollectionGetter(collGetter),
+		request.WithDefaultTimeout(5*time.Second),
+	)
+	reg := NewRequestRegistrar(engine)
+
+	body := map[string]any{"collection": "no-such"}
+	var buf bytes.Buffer
+	_ = json.NewEncoder(&buf).Encode(body)
+	req := httptest.NewRequest("POST", "/api/v1/run/collection", &buf)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	reg.handleRunCollection()(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404 (COLLECTION_NOT_FOUND); body: %s", w.Code, w.Body.String())
+	}
+	env := decodeEnvelope(w)
+	if env.OK {
+		t.Error("envelope.OK should be false")
+	}
+	if env.Error == nil || env.Error.Code != envelope.CodeCollectionNotFound {
+		t.Errorf("expected COLLECTION_NOT_FOUND error code, got: %v", env.Error)
+	}
+}

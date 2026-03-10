@@ -3,9 +3,11 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
+	"github.com/khanhnguyen/promptman/internal/collection"
 	"github.com/khanhnguyen/promptman/internal/request"
 	"github.com/khanhnguyen/promptman/pkg/envelope"
 )
@@ -92,13 +94,25 @@ func (rr *RequestRegistrar) handleRunCollection() http.HandlerFunc {
 }
 
 // writeEngineError writes an appropriate error envelope based on the engine error type.
+// It uses errors.As to unwrap wrapped domain errors, so errors returned as
+// fmt.Errorf("...: %w", domainErr) are handled correctly.
 func (rr *RequestRegistrar) writeEngineError(w http.ResponseWriter, err error) {
-	de, ok := err.(*request.DomainError)
-	if ok {
-		statusCode := envelope.HTTPStatusForCode(de.Code)
-		envelope.WriteError(w, statusCode, de.Code, de.Message)
+	// request.DomainError — REQUEST_TIMEOUT, REQUEST_FAILED, etc.
+	var rde *request.DomainError
+	if errors.As(err, &rde) {
+		statusCode := envelope.HTTPStatusForCode(rde.Code)
+		envelope.WriteError(w, statusCode, rde.Code, rde.Message)
 		return
 	}
+	// collection.DomainError — COLLECTION_NOT_FOUND, REQUEST_NOT_FOUND, etc.
+	// These arrive wrapped (e.g. "loading collection: %w") from engine.go.
+	var cde *collection.DomainError
+	if errors.As(err, &cde) {
+		statusCode := envelope.HTTPStatusForCode(cde.Code)
+		envelope.WriteError(w, statusCode, cde.Code, cde.Message)
+		return
+	}
+	// Unknown error — do not leak internal details.
 	envelope.WriteError(w, http.StatusInternalServerError,
-		envelope.CodeInternalError, err.Error())
+		envelope.CodeInternalError, "internal server error")
 }
