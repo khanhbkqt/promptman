@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/khanhnguyen/promptman/internal/ws"
 )
 
 const (
@@ -26,7 +28,8 @@ type RouteRegistrar interface {
 }
 
 // Server wraps an http.Server and integrates with the daemon Manager.
-// It provides a versioned REST API router with middleware support.
+// It provides a versioned REST API router with middleware support and
+// optional WebSocket hub integration.
 type Server struct {
 	mu         sync.Mutex
 	httpSrv    *http.Server
@@ -35,6 +38,7 @@ type Server struct {
 	running    bool
 	doneCh     chan struct{} // closed when ListenAndServe returns
 	registrars []RouteRegistrar
+	hub        *ws.Hub // nil if no WS support
 }
 
 // NewServer creates a new Server associated with the given Manager.
@@ -44,6 +48,13 @@ func NewServer(mgr *Manager, registrars ...RouteRegistrar) *Server {
 		mgr:        mgr,
 		registrars: registrars,
 	}
+}
+
+// WithHub sets the WebSocket hub on the server. When provided, the
+// server automatically mounts the WS upgrade endpoint and manages
+// the hub lifecycle (start on serve, shutdown on stop).
+func (s *Server) WithHub(hub *ws.Hub) {
+	s.hub = hub
 }
 
 // Start begins serving HTTP on the given address (e.g. "127.0.0.1:48721").
@@ -63,6 +74,15 @@ func (s *Server) Start(addr string, token string) error {
 	// Register core daemon endpoints.
 	s.mux.HandleFunc("GET "+apiPrefix+"status", StatusHandler(s.mgr))
 	s.mux.HandleFunc("POST "+apiPrefix+"shutdown", ShutdownHandler(s))
+
+	// Mount WebSocket endpoint if hub is configured.
+	// WS uses its own query-param token auth, so it is mounted
+	// directly on the mux before the middleware chain.
+	if s.hub != nil {
+		wsReg := ws.NewRegistrar(s.hub, token)
+		wsReg.RegisterRoutes(s.mux, apiPrefix)
+		go s.hub.Run()
+	}
 
 	// Let modules register their routes.
 	for _, r := range s.registrars {
@@ -101,7 +121,8 @@ func (s *Server) Start(addr string, token string) error {
 }
 
 // Shutdown gracefully stops the HTTP server, draining in-flight requests
-// within the shutdownDrainTimeout (5 seconds).
+// within the shutdownDrainTimeout (5 seconds). If a WebSocket hub is
+// configured, it is shut down first to close all WS connections.
 func (s *Server) Shutdown() error {
 	s.mu.Lock()
 	if !s.running {
@@ -111,7 +132,13 @@ func (s *Server) Shutdown() error {
 	s.running = false
 	srv := s.httpSrv
 	doneCh := s.doneCh
+	hub := s.hub
 	s.mu.Unlock()
+
+	// Shut down the WebSocket hub first — closes all WS connections.
+	if hub != nil {
+		hub.Shutdown()
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownDrainTimeout)
 	defer cancel()
