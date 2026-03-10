@@ -82,6 +82,24 @@ func (c *Client) Post(path string, body any) (*envelope.Envelope, error) {
 	return c.do(req)
 }
 
+// Put sends a PUT request with a JSON body to the daemon at the given API path.
+// Returns the parsed envelope.Envelope or a *CLIError on failure.
+func (c *Client) Put(path string, body any) (*envelope.Envelope, error) {
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return nil, ErrHTTPError.Wrap(fmt.Sprintf("marshalling PUT body for %s", path), err)
+	}
+
+	req, err := http.NewRequest(http.MethodPut, c.baseURL+path, bytes.NewReader(payload))
+	if err != nil {
+		return nil, ErrHTTPError.Wrap(fmt.Sprintf("building PUT request for %s", path), err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	c.addAuth(req)
+
+	return c.do(req)
+}
+
 // addAuth sets the Authorization header with the daemon's Bearer token.
 func (c *Client) addAuth(req *http.Request) {
 	req.Header.Set("Authorization", "Bearer "+c.token)

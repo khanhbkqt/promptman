@@ -97,6 +97,7 @@ Run HTTP requests, manage environments, and automate API workflows.`,
 	// Register subcommands.
 	root.AddCommand(newVersionCommand(flags))
 	root.AddCommand(newRunCommand(flags))
+	root.AddCommand(newEnvCommand(flags))
 
 	return root
 }
