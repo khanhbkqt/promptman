@@ -91,11 +91,16 @@ func (tm *TimeoutManager) RunWithTimeout(ctx context.Context, vm *goja.Runtime, 
 
 	// Create per-test context for the timer goroutine.
 	testCtx, testCancel := context.WithTimeout(ctx, effectiveTimeout)
-	defer testCancel()
 
 	// Schedule interrupt on timeout.
+	// The exited channel ensures we wait for the goroutine to fully exit
+	// before calling ClearInterrupt, preventing a race where testCancel()
+	// fires testCtx.Done() and the goroutine calls vm.Interrupt() after
+	// ClearInterrupt has already run.
 	done := make(chan struct{})
+	exited := make(chan struct{})
 	go func() {
+		defer close(exited)
 		select {
 		case <-testCtx.Done():
 			// Timeout or suite cancellation — interrupt the VM.
@@ -108,8 +113,11 @@ func (tm *TimeoutManager) RunWithTimeout(ctx context.Context, vm *goja.Runtime, 
 	// Run the function.
 	err := fn()
 
-	// Signal the goroutine to stop, then clear interrupt for VM reuse.
+	// Cancel the timer context first, then signal the goroutine, and
+	// wait for it to fully exit before clearing the interrupt.
+	testCancel()
 	close(done)
+	<-exited
 	vm.ClearInterrupt()
 
 	if err != nil {
