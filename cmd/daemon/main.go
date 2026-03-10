@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/khanhnguyen/promptman/internal/collection"
 	"github.com/khanhnguyen/promptman/internal/daemon"
@@ -74,10 +76,17 @@ func runStart(projectDir string) error {
 	// 5. Infra
 	hub := ws.NewHub()
 
-	mgr := daemon.NewManager()
+	// Pre-declare srv so we can use it in the shutdown callback
+	var srv *daemon.Server
+
+	mgr := daemon.NewManager(daemon.WithShutdownCallback(func() {
+		if srv != nil {
+			_ = srv.Shutdown()
+		}
+	}))
 
 	// 6. Server
-	srv := daemon.NewServer(mgr, reqReg, envReg)
+	srv = daemon.NewServer(mgr, reqReg, envReg)
 	srv.WithHub(hub)
 
 	// Start manager
@@ -95,6 +104,23 @@ func runStart(projectDir string) error {
 
 	fmt.Fprintf(os.Stdout, "Daemon started on %s (pid: %d) inside %s\n", addr, info.PID, info.ProjectDir)
 
-	// Temporarily block to keep active (will add signal handling in next task)
-	select {}
+	// Wait for shutdown signal
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	<-sigCh
+
+	fmt.Fprintln(os.Stderr, "\n[daemon] Received shutdown signal. Shutting down...")
+
+	// Gracefully shutdown the HTTP server and WS hub
+	if err := srv.Shutdown(); err != nil {
+		fmt.Fprintf(os.Stderr, "[daemon] Server shutdown error: %v\n", err)
+	}
+
+	// Terminate the manager (which deletes the lock file)
+	if err := mgr.Stop(); err != nil {
+		fmt.Fprintf(os.Stderr, "[daemon] Manager stop error: %v\n", err)
+	}
+
+	fmt.Fprintln(os.Stderr, "[daemon] Shutdown complete.")
+	return nil
 }
