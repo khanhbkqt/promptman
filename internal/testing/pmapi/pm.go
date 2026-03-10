@@ -12,21 +12,49 @@ import (
 
 // PM holds the state for a pm.* API instance within a test execution.
 // It collects TestCase results from pm.test() calls and provides
-// pm.expect(), pm.response, and pm.timeout().
+// pm.expect(), pm.response, pm.assert, pm.environment, pm.variables,
+// pm.collectionVariables, and pm.timeout().
 type PM struct {
-	vm       *goja.Runtime
-	response *request.Response
-	tests    []testing.TestCase
-	timeout  time.Duration // per-test timeout override (0 = use default)
+	vm                  *goja.Runtime
+	response            *request.Response
+	tests               []testing.TestCase
+	timeout             time.Duration // per-test timeout override (0 = use default)
+	environment         *VariableScope
+	variables           *VariableScope
+	collectionVariables *VariableScope
 }
 
 // NewPM creates a new PM instance for the given VM and response.
+// If env/vars/collVars are nil, empty scopes are created.
 func NewPM(vm *goja.Runtime, resp *request.Response) *PM {
 	return &PM{
-		vm:       vm,
-		response: resp,
+		vm:                  vm,
+		response:            resp,
+		environment:         NewVariableScope(nil),
+		variables:           NewVariableScope(nil),
+		collectionVariables: NewVariableScope(nil),
 	}
 }
+
+// NewPMWithScopes creates a PM with pre-populated variable scopes.
+func NewPMWithScopes(vm *goja.Runtime, resp *request.Response, env, vars, collVars map[string]string) *PM {
+	return &PM{
+		vm:                  vm,
+		response:            resp,
+		environment:         NewVariableScope(env),
+		variables:           NewVariableScope(vars),
+		collectionVariables: NewVariableScope(collVars),
+	}
+}
+
+// Environment returns the environment variable scope.
+func (p *PM) Environment() *VariableScope { return p.environment }
+
+// Variables returns the test-scoped variable scope.
+func (p *PM) Variables() *VariableScope { return p.variables }
+
+// CollectionVariables returns the collection-scoped variable scope.
+func (p *PM) CollectionVariables() *VariableScope { return p.collectionVariables }
 
 // Tests returns the collected test case results.
 func (p *PM) Tests() []testing.TestCase {
@@ -64,6 +92,26 @@ func (p *PM) InjectInto(vm *goja.Runtime) error {
 	// pm.timeout(ms)
 	if err := obj.Set("timeout", p.timeoutFn()); err != nil {
 		return fmt.Errorf("setting pm.timeout: %w", err)
+	}
+
+	// pm.assert.*
+	if err := obj.Set("assert", injectAssertObject(vm)); err != nil {
+		return fmt.Errorf("setting pm.assert: %w", err)
+	}
+
+	// pm.environment.get/set
+	if err := obj.Set("environment", injectScopeObject(vm, p.environment)); err != nil {
+		return fmt.Errorf("setting pm.environment: %w", err)
+	}
+
+	// pm.variables.get/set
+	if err := obj.Set("variables", injectScopeObject(vm, p.variables)); err != nil {
+		return fmt.Errorf("setting pm.variables: %w", err)
+	}
+
+	// pm.collectionVariables.get/set
+	if err := obj.Set("collectionVariables", injectScopeObject(vm, p.collectionVariables)); err != nil {
+		return fmt.Errorf("setting pm.collectionVariables: %w", err)
 	}
 
 	return vm.Set("pm", obj)
