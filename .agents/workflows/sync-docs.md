@@ -1,5 +1,5 @@
 ---
-description: After completing code changes, systematically identify and update all affected project documents. Creates an audit trail of what was updated.
+description: 
 ---
 
 > [!CAUTION]

@@ -1,5 +1,5 @@
 ---
-description: Define the scope of a milestone or phase: review brainstorm outputs, group features, set boundaries, and produce a scoping document with human approval.
+description: 
 ---
 
 > [!CAUTION]

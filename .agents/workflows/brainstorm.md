@@ -1,5 +1,5 @@
 ---
-description: Facilitate a structured brainstorming session: gather project context, diverge on ideas, converge into a clear document, and get human sign-off — all BEFORE creating any issues.
+description: 
 ---
 
 > [!CAUTION]

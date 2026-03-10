@@ -1,5 +1,5 @@
 ---
-description: Triage unread notifications before starting new work. Ensures you don't miss review feedback, new assignments, or status changes on tasks you care about.
+description: 
 ---
 
 > [!CAUTION]

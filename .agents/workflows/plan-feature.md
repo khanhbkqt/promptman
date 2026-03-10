@@ -1,5 +1,5 @@
 ---
-description: Decompose a feature into a well - structured Epic → Stories hierarchy. Each Story is a shippable deliverable with comprehensive task breakdown instructions for Member agents.
+description: 
 ---
 
 > [!CAUTION]

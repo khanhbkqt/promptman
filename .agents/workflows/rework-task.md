@@ -1,5 +1,5 @@
 ---
-description: Handle a review rejection: read the reviewer feedback, parse required changes,    address each item, re - verify, and resubmit for review.
+description: 
 ---
 
 > [!CAUTION]

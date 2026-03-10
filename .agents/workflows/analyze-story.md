@@ -1,5 +1,5 @@
 ---
-description: Perform deep technical analysis of a Story: review all context and docs, write an implementation plan as a comment, get human approval, then create appropriately-sized Tasks.
+description: 
 ---
 
 > [!CAUTION]

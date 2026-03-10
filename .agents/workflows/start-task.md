@@ -1,5 +1,5 @@
 ---
-description: Comprehensive pre-work checklist: gather full context from the issue hierarchy, understand requirements, check dependencies, set status, create branch, and confirm readiness.
+description: 
 ---
 
 > [!CAUTION]

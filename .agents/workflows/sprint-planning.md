@@ -1,5 +1,5 @@
 ---
-description: Facilitate a sprint planning session: create a board, gather candidate Stories, get human approval, populate the board, and show the final plan.
+description: 
 ---
 
 > [!CAUTION]

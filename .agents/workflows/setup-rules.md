@@ -1,5 +1,5 @@
 ---
-description: Install all VibePM skills, workflows, and IDE rules as **local files** in the project. After this, you work from local files — no need to read MCP resources during normal work. Re-run this workflow to pull updates.
+description: 
 ---
 
 > [!CAUTION]

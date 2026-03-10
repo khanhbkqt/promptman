@@ -1,5 +1,5 @@
 ---
-description: Conduct a structured review of completed work: gather context, examine implementation against requirements, check for human reviewer comments, provide detailed feedback, and make an approve / reject decision. Also covers responding to follow-up comme
+description: 
 ---
 
 > [!CAUTION]
