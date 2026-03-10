@@ -28,6 +28,11 @@ const (
 	CodeTestTimeout        = "TEST_TIMEOUT"
 	CodeScriptParse        = "SCRIPT_PARSE"
 
+	// DAST errors (M5)
+	CodeInvalidRule     = "INVALID_RULE"
+	CodeProfileNotFound = "PROFILE_NOT_FOUND"
+	CodeRuleLoadFailed  = "RULE_LOAD_FAILED"
+
 	// Import/export errors (M11)
 	CodeImportFailed = "IMPORT_FAILED"
 	CodeExportFailed = "EXPORT_FAILED"
@@ -54,8 +59,10 @@ func HTTPStatusForCode(code string) int {
 	case CodeSandboxViolation:
 		return http.StatusForbidden
 	case CodeEnvNotSet, CodeInvalidYAML, CodeInvalidRequest, CodeInvalidInput, CodeScriptParse,
-		CodeImportFailed, CodeExportFailed:
+		CodeImportFailed, CodeExportFailed, CodeInvalidRule, CodeRuleLoadFailed:
 		return http.StatusBadRequest
+	case CodeProfileNotFound:
+		return http.StatusNotFound
 	case CodeRequestTimeout, CodeTestTimeout:
 		return http.StatusRequestTimeout
 	case CodeRequestFailed:
