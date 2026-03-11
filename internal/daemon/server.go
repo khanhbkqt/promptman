@@ -89,10 +89,11 @@ func (s *Server) Start(addr string, token string) error {
 		r.RegisterRoutes(s.mux, apiPrefix)
 	}
 
-	// Build middleware chain: auth → idle-reset → mux.
+	// Build middleware chain: CORS → auth → idle-reset → mux.
 	var handler http.Handler = s.mux
 	handler = IdleResetMiddleware(s.mgr)(handler)
 	handler = AuthMiddleware(token)(handler)
+	handler = CORSMiddleware()(handler)
 
 	s.httpSrv = &http.Server{
 		Addr:    addr,

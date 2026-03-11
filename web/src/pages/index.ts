@@ -1,0 +1,6 @@
+export * from "./CollectionsPage"
+export * from "./EnvironmentsPage"
+export * from "./TestsPage"
+export * from "./HistoryPage"
+export * from "./StressPage"
+export * from "./NotFoundPage"

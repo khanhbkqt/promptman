@@ -1,0 +1,8 @@
+export function HistoryPage() {
+  return (
+    <div className="p-6">
+      <h1 className="text-2xl font-semibold mb-2">History</h1>
+      <p className="text-muted-foreground">Recent request history.</p>
+    </div>
+  )
+}
