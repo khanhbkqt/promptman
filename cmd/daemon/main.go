@@ -9,8 +9,10 @@ import (
 	"github.com/khanhnguyen/promptman/internal/collection"
 	"github.com/khanhnguyen/promptman/internal/daemon"
 	"github.com/khanhnguyen/promptman/internal/environment"
+	"github.com/khanhnguyen/promptman/internal/history"
 	"github.com/khanhnguyen/promptman/internal/request"
 	"github.com/khanhnguyen/promptman/internal/stress"
+	testcore "github.com/khanhnguyen/promptman/internal/testing/core"
 	"github.com/khanhnguyen/promptman/internal/ws"
 	"github.com/khanhnguyen/promptman/pkg/fsutil"
 	"github.com/spf13/cobra"
@@ -67,6 +69,13 @@ func runStart(projectDir string) error {
 	collSvc := collection.NewService(collRepo)
 	envSvc := environment.NewService(envRepo)
 
+	// History service — backed by .promptman/history/ directory.
+	historySvc, err := history.NewService(".promptman/history")
+	if err != nil {
+		return fmt.Errorf("init history service: %w", err)
+	}
+	defer historySvc.Close()
+
 	// 3. Engine
 	engine := request.NewEngine(collSvc, envSvc, request.WithCollectionGetter(collSvc))
 
@@ -74,6 +83,14 @@ func runStart(projectDir string) error {
 	reqReg := daemon.NewRequestRegistrar(engine)
 	envReg := daemon.NewEnvironmentRegistrar(envSvc)
 	collReg := daemon.NewCollectionRegistrar(collSvc)
+	historyReg := daemon.NewHistoryRegistrar(historySvc)
+
+	// Test run registrar — wires the functional test runner.
+	testLoader := testcore.NewFileLoader("")
+	testLister := testcore.NewCollectionListerAdapter(collSvc)
+	testRunner := testcore.NewRunner(testLoader, engine, testLister)
+	suiteAdapter := daemon.NewSuiteRunnerAdapter(testRunner)
+	testResultStore := daemon.NewResultStore(0)
 
 	// Stress test registrar — uses a stub executor for daemon-side runs.
 	// The daemon only needs to receive run requests; the real executor is
@@ -89,6 +106,9 @@ func runStart(projectDir string) error {
 	// Inject hub into stress runner so WS events are emitted.
 	stressRunner.WithHub(hub)
 
+	// Test run registrar needs the hub for WS broadcasting.
+	testRunReg := daemon.NewTestRunRegistrar(suiteAdapter, hub, testResultStore)
+
 	// Pre-declare srv so we can use it in the shutdown callback
 	var srv *daemon.Server
 
@@ -99,7 +119,7 @@ func runStart(projectDir string) error {
 	}))
 
 	// 6. Server
-	srv = daemon.NewServer(mgr, reqReg, envReg, stressReg, collReg)
+	srv = daemon.NewServer(mgr, reqReg, envReg, stressReg, collReg, historyReg, testRunReg)
 	srv.WithHub(hub)
 
 	// Start manager
