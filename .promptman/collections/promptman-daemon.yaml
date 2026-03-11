@@ -1,0 +1,154 @@
+name: PromptMan Daemon API
+baseUrl: http://127.0.0.1:{{port}}
+defaults:
+  headers:
+    Accept: application/json
+  timeout: 10000
+auth:
+  type: bearer
+  bearer:
+    token: "{{token}}"
+
+requests:
+  - id: daemon-status
+    method: GET
+    path: /api/v1/status
+
+folders:
+  - id: collections
+    name: Collections
+    requests:
+      - id: list-collections
+        method: GET
+        path: /api/v1/collections
+
+      - id: get-collection
+        method: GET
+        path: /api/v1/collections/httpbin
+
+      - id: update-collection
+        method: PUT
+        path: /api/v1/collections/httpbin
+        headers:
+          Content-Type: application/json
+        body:
+          type: json
+          content:
+            name: "HTTPBin — Echo & Debug"
+
+  - id: environments
+    name: Environments
+    requests:
+      - id: list-environments
+        method: GET
+        path: /api/v1/environments
+
+      - id: get-environment
+        method: GET
+        path: /api/v1/environments/dev
+
+      - id: set-active-env
+        method: POST
+        path: /api/v1/environments/active
+        headers:
+          Content-Type: application/json
+        body:
+          type: json
+          content:
+            name: dev
+
+      - id: upsert-environment
+        method: PUT
+        path: /api/v1/environments/staging
+        headers:
+          Content-Type: application/json
+        body:
+          type: json
+          content:
+            variables:
+              baseUrl: "https://staging.example.com"
+              apiVersion: "v2"
+            secrets:
+              apiKey: "staging-secret-key"
+
+  - id: history
+    name: History
+    requests:
+      - id: list-history
+        method: GET
+        path: /api/v1/history?limit=10
+
+      - id: clear-history
+        method: DELETE
+        path: /api/v1/history
+
+  - id: requests
+    name: Requests
+    requests:
+      - id: run-single-request
+        method: POST
+        path: /api/v1/run
+        headers:
+          Content-Type: application/json
+        body:
+          type: json
+          content:
+            collection: httpbin
+            requestId: simple-get
+            source: gui
+
+      - id: run-collection
+        method: POST
+        path: /api/v1/run/collection
+        headers:
+          Content-Type: application/json
+        body:
+          type: json
+          content:
+            collection: httpbin
+            stopOnError: false
+
+  - id: tests
+    name: Tests
+    requests:
+      - id: run-tests
+        method: POST
+        path: /api/v1/tests/run
+        headers:
+          Content-Type: application/json
+        body:
+          type: json
+          content:
+            collection: httpbin
+
+      - id: list-test-results
+        method: GET
+        path: /api/v1/tests/results
+
+      - id: get-test-result
+        method: GET
+        path: /api/v1/tests/results/latest
+
+  - id: stress
+    name: Stress Tests
+    requests:
+      - id: run-stress
+        method: POST
+        path: /api/v1/stress/run
+        headers:
+          Content-Type: application/json
+        body:
+          type: json
+          content:
+            collection: httpbin
+            requestId: simple-get
+            users: 2
+            duration: "5s"
+
+      - id: list-stress-results
+        method: GET
+        path: /api/v1/stress/results
+
+      - id: get-stress-result
+        method: GET
+        path: /api/v1/stress/results/latest
