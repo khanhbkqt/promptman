@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { ConnectionStatus } from "@/components/ConnectionStatus"
+import { EnvSwitcher } from "@/components/env-switcher"
 
 const NAV_ITEMS = [
   {
@@ -107,7 +108,9 @@ export function AppLayout() {
           <div className="flex-1">
             <h2 className="text-sm font-semibold truncate">{currentTitle}</h2>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <EnvSwitcher />
+            <Separator orientation="vertical" className="h-4" />
             <ConnectionStatus />
           </div>
         </header>
