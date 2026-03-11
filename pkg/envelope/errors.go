@@ -33,6 +33,12 @@ const (
 	CodeProfileNotFound = "PROFILE_NOT_FOUND"
 	CodeRuleLoadFailed  = "RULE_LOAD_FAILED"
 
+	// Stress errors (M6)
+	CodeInvalidConfig   = "INVALID_CONFIG"
+	CodeThresholdFailed = "THRESHOLD_FAILED"
+	CodeStressTimeout   = "STRESS_TIMEOUT"
+	CodeInvalidScenario = "INVALID_SCENARIO"
+
 	// History errors (M7)
 	CodeHistoryCorrupted   = "HISTORY_CORRUPTED"
 	CodeHistoryNotFound    = "HISTORY_NOT_FOUND"
@@ -64,11 +70,12 @@ func HTTPStatusForCode(code string) int {
 	case CodeSandboxViolation:
 		return http.StatusForbidden
 	case CodeEnvNotSet, CodeInvalidYAML, CodeInvalidRequest, CodeInvalidInput, CodeScriptParse,
-		CodeImportFailed, CodeExportFailed, CodeInvalidRule, CodeRuleLoadFailed:
+		CodeImportFailed, CodeExportFailed, CodeInvalidRule, CodeRuleLoadFailed,
+		CodeInvalidConfig, CodeThresholdFailed, CodeInvalidScenario:
 		return http.StatusBadRequest
 	case CodeProfileNotFound:
 		return http.StatusNotFound
-	case CodeRequestTimeout, CodeTestTimeout:
+	case CodeRequestTimeout, CodeTestTimeout, CodeStressTimeout:
 		return http.StatusRequestTimeout
 	case CodeRequestFailed:
 		return http.StatusBadGateway
