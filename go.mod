@@ -3,6 +3,7 @@ module github.com/khanhnguyen/promptman
 go 1.25.6
 
 require (
+	github.com/HdrHistogram/hdrhistogram-go v1.2.0 // indirect
 	github.com/dlclark/regexp2 v1.11.4 // indirect
 	github.com/dop251/goja v0.0.0-20260305124333-6a7976c22267 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
