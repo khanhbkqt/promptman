@@ -1,0 +1,25 @@
+name: HTTPBin Load Test
+scenarios:
+  - name: "Fast JSON GETs"
+    request: httpbin/get-json
+    weight: 60
+    thinkTime: 100ms
+  
+  - name: "POST Operations"
+    request: httpbin/post-anything
+    weight: 30
+    thinkTime: 500ms
+
+  - name: "Slow Requests (1s delay)"
+    request: httpbin/delay-request
+    weight: 10
+
+config:
+  users: 50
+  rampUp: 10s
+  duration: 60s
+
+thresholds:
+  p95_latency: 500ms
+  error_rate: 1%
+  rps: 20

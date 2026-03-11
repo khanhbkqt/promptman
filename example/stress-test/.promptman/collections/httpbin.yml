@@ -1,0 +1,25 @@
+name: "HTTPBin Stress Tests"
+description: "A collection of API endpoints for load testing."
+
+requests:
+  - id: get-json
+    name: "Get JSON Response"
+    method: GET
+    url: "https://httpbin.org/json"
+
+  - id: post-anything
+    name: "Post Data"
+    method: POST
+    url: "https://httpbin.org/anything"
+    body:
+      type: json
+      content: |-
+        {
+          "hello": "world",
+          "timestamp": "{{$timestamp}}"
+        }
+
+  - id: delay-request
+    name: "Delayed Response"
+    method: GET
+    url: "https://httpbin.org/delay/1"
