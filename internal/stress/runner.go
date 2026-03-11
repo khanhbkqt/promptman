@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/khanhnguyen/promptman/internal/ws"
 )
 
 // StressRunner orchestrates a stress test by coordinating the scheduler,
@@ -12,11 +14,20 @@ import (
 //   - RunFromConfig: for complex multi-scenario tests from YAML files
 type StressRunner struct {
 	executor RequestExecutor
+	hub      *ws.Hub // optional; nil = no WS broadcasting
 }
 
 // NewStressRunner creates a StressRunner with the given request executor.
 func NewStressRunner(executor RequestExecutor) *StressRunner {
 	return &StressRunner{executor: executor}
+}
+
+// WithHub sets the WebSocket hub for real-time event broadcasting.
+// When set, the runner emits stress.tick every second and
+// stress.completed when the test finishes. If hub is nil,
+// broadcasting is silently skipped.
+func (sr *StressRunner) WithHub(hub *ws.Hub) {
+	sr.hub = hub
 }
 
 // Run executes a single-scenario stress test from CLI flags.
@@ -114,6 +125,18 @@ loop:
 			elapsed := time.Since(start).Seconds()
 			point := metrics.Snapshot(elapsed, sched.ActiveUsers())
 			timeline = append(timeline, point)
+
+			// Broadcast real-time tick event to GUI.
+			if sr.hub != nil {
+				sr.hub.Broadcast(ws.NewEvent(ws.EventStressTick,
+					ws.StressTickPayload{
+						Elapsed:     int64(point.Elapsed),
+						RPS:         point.RPS,
+						P95:         float64(point.P95),
+						ErrorRate:   point.ErrorRate / 100, // normalize to 0.0–1.0
+						ActiveUsers: point.ActiveUsers,
+					}))
+			}
 		}
 	}
 
@@ -136,6 +159,15 @@ loop:
 	if len(thresholds) > 0 {
 		results, _ := EvaluateThresholds(thresholds, summary)
 		report.Thresholds = results
+	}
+
+	// Broadcast completion event with the full report.
+	if sr.hub != nil {
+		sr.hub.Broadcast(ws.NewEvent(ws.EventStressCompleted,
+			ws.StressCompletedPayload{
+				Scenario: report.Scenario,
+				Summary:  report,
+			}))
 	}
 
 	return report, nil
