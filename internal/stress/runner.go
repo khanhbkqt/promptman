@@ -2,6 +2,7 @@ package stress
 
 import (
 	"context"
+	"fmt"
 	"time"
 )
 
@@ -19,24 +20,37 @@ func NewStressRunner(executor RequestExecutor) *StressRunner {
 }
 
 // Run executes a single-scenario stress test from CLI flags.
+// If opts.Thresholds are provided, they are evaluated against the final report
+// and attached to report.Thresholds.
 func (sr *StressRunner) Run(opts *StressOpts) (*StressReport, error) {
 	scenarios, params, err := ParseOpts(opts)
 	if err != nil {
 		return nil, err
 	}
 
-	return sr.execute(context.Background(), opts.RequestID, scenarios, params)
+	thresholds, err := ParseThresholds(opts.Thresholds)
+	if err != nil {
+		return nil, err
+	}
+
+	return sr.execute(context.Background(), opts.RequestID, scenarios, params, thresholds)
 }
 
 // RunFromConfig loads a YAML config file and executes a multi-scenario
-// stress test.
+// stress test. Thresholds defined in the YAML ThresholdConfig are evaluated
+// against the final report.
 func (sr *StressRunner) RunFromConfig(path string) (*StressReport, error) {
 	cfg, scenarios, err := ParseConfig(path)
 	if err != nil {
 		return nil, err
 	}
 
-	return sr.execute(context.Background(), cfg.Name, scenarios, cfg.Config)
+	thresholds, err := thresholdsFromConfig(cfg.Thresholds)
+	if err != nil {
+		return nil, err
+	}
+
+	return sr.execute(context.Background(), cfg.Name, scenarios, cfg.Config, thresholds)
 }
 
 // execute runs the core stress test loop:
@@ -51,6 +65,7 @@ func (sr *StressRunner) execute(
 	name string,
 	scenarios []resolvedScenario,
 	params StressParams,
+	thresholds []Threshold,
 ) (*StressReport, error) {
 	duration, err := time.ParseDuration(params.Duration)
 	if err != nil {
@@ -117,5 +132,34 @@ loop:
 		Timeline: timeline,
 	}
 
+	// Evaluate thresholds and attach results to the report.
+	if len(thresholds) > 0 {
+		results, _ := EvaluateThresholds(thresholds, summary)
+		report.Thresholds = results
+	}
+
 	return report, nil
+}
+
+// thresholdsFromConfig converts a ThresholdConfig (from YAML) into a slice of
+// Threshold values ready for evaluation.
+//
+// Conversion rules:
+//   - P95Latency: "500ms" → "p95<500ms"
+//   - ErrorRate:  "5%"    → "error_rate<5%"
+//   - RPS:        100.0   → "rps>100"
+func thresholdsFromConfig(cfg ThresholdConfig) ([]Threshold, error) {
+	var exprs []string
+
+	if cfg.P95Latency != "" {
+		exprs = append(exprs, fmt.Sprintf("p95<%s", cfg.P95Latency))
+	}
+	if cfg.ErrorRate != "" {
+		exprs = append(exprs, fmt.Sprintf("error_rate<%s", cfg.ErrorRate))
+	}
+	if cfg.RPS > 0 {
+		exprs = append(exprs, fmt.Sprintf("rps>%g", cfg.RPS))
+	}
+
+	return ParseThresholds(exprs)
 }

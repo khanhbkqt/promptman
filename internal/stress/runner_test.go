@@ -280,3 +280,120 @@ func writeRunnerTestYAML(t *testing.T, content string) string {
 	}
 	return path
 }
+
+// ─── Threshold wiring tests ───────────────────────────────────────────────────
+
+func TestStressRunner_Run_WithThresholdsPass(t *testing.T) {
+	exec := &mockExecutor{status: 200, latencyUs: 1000, bodySize: 64}
+	runner := NewStressRunner(exec)
+
+	report, err := runner.Run(&StressOpts{
+		Collection: "test",
+		RequestID:  "req",
+		Users:      3,
+		Duration:   "1s",
+		Thresholds: []string{"error_rate<50%", "rps>0"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(report.Thresholds) != 2 {
+		t.Errorf("len(Thresholds) = %d, want 2", len(report.Thresholds))
+	}
+	for _, r := range report.Thresholds {
+		if !r.Passed {
+			t.Errorf("threshold %q failed: actual=%.1f %s %.1f", r.Name, r.Actual, r.Operator, r.Expected)
+		}
+	}
+}
+
+func TestStressRunner_Run_WithThresholdsFail(t *testing.T) {
+	// All 500s → error_rate=100, fails the <5% threshold.
+	exec := &mockExecutor{status: 500, latencyUs: 1000, bodySize: 0}
+	runner := NewStressRunner(exec)
+
+	report, err := runner.Run(&StressOpts{
+		Collection: "test",
+		RequestID:  "req",
+		Users:      3,
+		Duration:   "1s",
+		Thresholds: []string{"error_rate<5%"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(report.Thresholds) != 1 {
+		t.Errorf("len(Thresholds) = %d, want 1", len(report.Thresholds))
+	}
+	if report.Thresholds[0].Passed {
+		t.Errorf("threshold Passed = true, want false (error_rate=%.1f)", report.Thresholds[0].Actual)
+	}
+}
+
+func TestStressRunner_Run_NoThresholds(t *testing.T) {
+	exec := &mockExecutor{status: 200, latencyUs: 500, bodySize: 64}
+	runner := NewStressRunner(exec)
+
+	report, err := runner.Run(&StressOpts{
+		Collection: "test",
+		RequestID:  "req",
+		Users:      2,
+		Duration:   "1s",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if report.Thresholds != nil {
+		t.Errorf("Thresholds = %v, want nil when none defined", report.Thresholds)
+	}
+}
+
+func TestStressRunner_Run_InvalidThreshold(t *testing.T) {
+	exec := &mockExecutor{status: 200}
+	runner := NewStressRunner(exec)
+
+	_, err := runner.Run(&StressOpts{
+		Collection: "test",
+		RequestID:  "req",
+		Users:      2,
+		Duration:   "1s",
+		Thresholds: []string{"badexpression"},
+	})
+	if err == nil {
+		t.Fatal("expected error for invalid threshold, got nil")
+	}
+}
+
+func TestStressRunner_RunFromConfig_WithThresholdConfig(t *testing.T) {
+	exec := &mockExecutor{status: 200, latencyUs: 500, bodySize: 64}
+	runner := NewStressRunner(exec)
+
+	yaml := `
+name: Threshold Config Test
+scenarios:
+  - name: read
+    request: test/list
+    weight: 100
+config:
+  users: 3
+  duration: 1s
+thresholds:
+  error_rate: "50%"
+`
+	path := writeRunnerTestYAML(t, yaml)
+
+	report, err := runner.RunFromConfig(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// error_rate < 50% should pass (executor returns 200s)
+	if len(report.Thresholds) == 0 {
+		t.Error("Thresholds is empty, want at least 1 result")
+	}
+	for _, r := range report.Thresholds {
+		if !r.Passed {
+			t.Errorf("threshold %q failed: actual=%.1f %s %.1f", r.Name, r.Actual, r.Operator, r.Expected)
+		}
+	}
+}
