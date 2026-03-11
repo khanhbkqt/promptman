@@ -10,6 +10,7 @@ import (
 	"github.com/khanhnguyen/promptman/internal/daemon"
 	"github.com/khanhnguyen/promptman/internal/environment"
 	"github.com/khanhnguyen/promptman/internal/request"
+	"github.com/khanhnguyen/promptman/internal/stress"
 	"github.com/khanhnguyen/promptman/internal/ws"
 	"github.com/khanhnguyen/promptman/pkg/fsutil"
 	"github.com/spf13/cobra"
@@ -73,8 +74,19 @@ func runStart(projectDir string) error {
 	reqReg := daemon.NewRequestRegistrar(engine)
 	envReg := daemon.NewEnvironmentRegistrar(envSvc)
 
+	// Stress test registrar — uses a stub executor for daemon-side runs.
+	// The daemon only needs to receive run requests; the real executor is
+	// wired at request time using the engine.
+	stressExecutor := stress.NewRequestExecutorFromEngine(engine)
+	stressRunner := stress.NewStressRunner(stressExecutor)
+	stressStore := daemon.NewStressResultStore(0)
+	stressReg := daemon.NewStressRegistrar(stressRunner, stressStore)
+
 	// 5. Infra
 	hub := ws.NewHub()
+
+	// Inject hub into stress runner so WS events are emitted.
+	stressRunner.WithHub(hub)
 
 	// Pre-declare srv so we can use it in the shutdown callback
 	var srv *daemon.Server
@@ -86,7 +98,7 @@ func runStart(projectDir string) error {
 	}))
 
 	// 6. Server
-	srv = daemon.NewServer(mgr, reqReg, envReg)
+	srv = daemon.NewServer(mgr, reqReg, envReg, stressReg)
 	srv.WithHub(hub)
 
 	// Start manager

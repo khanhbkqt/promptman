@@ -33,6 +33,10 @@ type stressFlags struct {
 	// config is the path to a YAML stress-test config file.
 	// When set, positional arguments are ignored.
 	config string
+
+	// outputFile is the optional path to write the report as JSON.
+	// When set, the report is written to disk in addition to stdout.
+	outputFile string
 }
 
 // newStressCommand creates the "stress" subcommand for running load tests.
@@ -87,6 +91,7 @@ Exit codes:
 	f.StringArrayVar(&sf.thresholds, "threshold", nil,
 		`Pass/fail threshold expression (repeatable). E.g. --threshold "p95<500ms"`)
 	f.StringVar(&sf.config, "config", "", "Path to a YAML stress-test config file")
+	f.StringVar(&sf.outputFile, "output-file", "", "Write the report to a JSON file at the given path")
 
 	return cmd
 }
@@ -151,6 +156,13 @@ func executeStress(cmd *cobra.Command, args []string, globals *GlobalFlags, sf *
 	env := envelope.Success(buildStressOutput(report))
 	if fmtErr := formatter.Format(cmd.OutOrStdout(), env); fmtErr != nil {
 		return fmtErr
+	}
+
+	// Optionally write the report to disk as JSON.
+	if sf.outputFile != "" {
+		if writeErr := stress.WriteJSON(report, sf.outputFile); writeErr != nil {
+			return fmt.Errorf("writing report to %s: %w", sf.outputFile, writeErr)
+		}
 	}
 
 	if len(report.Thresholds) > 0 && !allPassed {
