@@ -7,6 +7,7 @@ type ExecuteInput struct {
 	Environment   string         `json:"env,omitempty"`           // override active environment
 	Variables     map[string]any `json:"variables,omitempty"`     // runtime variable overrides
 	SkipTLSVerify bool           `json:"skipTlsVerify,omitempty"` // skip TLS certificate verification
+	Source        string         `json:"source,omitempty"`        // history source: cli | gui | test
 }
 
 // Response holds the complete result of an HTTP request execution.

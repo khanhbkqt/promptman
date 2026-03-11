@@ -10,6 +10,8 @@ type HistoryEntry struct {
 	RequestID    string    `json:"requestId"`
 	Response     *Response `json:"response"`
 	ExecutedAt   time.Time `json:"executedAt"`
+	Source       string    `json:"source,omitempty"` // cli | gui | test
+	Environment  string    `json:"env,omitempty"`    // environment name
 }
 
 // HistoryAppender appends request execution results to a history log.

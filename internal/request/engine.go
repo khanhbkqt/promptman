@@ -165,6 +165,8 @@ func (e *Engine) Execute(ctx context.Context, input ExecuteInput) (*Response, er
 		RequestID:    input.RequestID,
 		Response:     result,
 		ExecutedAt:   time.Now(),
+		Source:       input.Source,
+		Environment:  input.Environment,
 	})
 
 	return result, nil
