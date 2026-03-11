@@ -15,23 +15,24 @@ export function CollectionsPage() {
   // Find the selected request in the collection tree
   const selectedRequest = useMemo(() => {
     if (!collection || !selectedRequestPath) return null
-    return findRequest(
+    return findRequestByPath(
       selectedRequestPath,
       collection.requests,
       collection.folders,
+      '',
     )
   }, [collection, selectedRequestPath])
 
   const handleSend = useCallback(
-    (request: RequestItem) => {
-      if (!selectedCollectionId) return
+    (_request: RequestItem) => {
+      if (!selectedCollectionId || !selectedRequestPath) return
       sendMutation.mutate({
         collection: selectedCollectionId,
-        requestId: request.id,
+        requestId: selectedRequestPath, // Full folder-qualified path
         source: 'gui',
       })
     },
-    [selectedCollectionId, sendMutation],
+    [selectedCollectionId, selectedRequestPath, sendMutation],
   )
 
   return (
@@ -80,21 +81,24 @@ export function CollectionsPage() {
 }
 
 /**
- * Recursively find a request by ID in requests/folders.
+ * Recursively find a request by its folder-qualified path (e.g. "auth-testing/bearer-auth").
  */
-function findRequest(
-  id: string,
-  requests?: RequestItem[],
-  folders?: Folder[],
+function findRequestByPath(
+  targetPath: string,
+  requests: RequestItem[] | undefined,
+  folders: Folder[] | undefined,
+  prefix: string,
 ): RequestItem | null {
   if (requests) {
     for (const r of requests) {
-      if (r.id === id) return r
+      const fullPath = prefix ? `${prefix}/${r.id}` : r.id
+      if (fullPath === targetPath) return r
     }
   }
   if (folders) {
     for (const f of folders) {
-      const found = findRequest(id, f.requests, f.folders)
+      const folderPath = prefix ? `${prefix}/${f.id}` : f.id
+      const found = findRequestByPath(targetPath, f.requests, f.folders, folderPath)
       if (found) return found
     }
   }

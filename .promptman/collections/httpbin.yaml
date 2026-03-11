@@ -3,7 +3,7 @@ baseUrl: https://httpbin.org
 defaults:
   headers:
     Accept: application/json
-  timeout: 15
+  timeout: 30000
 
 requests:
   - id: simple-get

@@ -44,17 +44,21 @@ function RequestRow({
   request,
   collectionId,
   depth,
+  pathPrefix,
 }: {
   request: RequestItem
   collectionId: string
   depth: number
+  pathPrefix: string
 }) {
   const { selectedRequestPath, selectRequest } = useCollectionStore()
-  const isActive = selectedRequestPath === request.id
+  // Full path = folder prefix + request ID (e.g. "auth-testing/bearer-auth")
+  const fullPath = pathPrefix ? `${pathPrefix}/${request.id}` : request.id
+  const isActive = selectedRequestPath === fullPath
 
   return (
     <button
-      onClick={() => selectRequest(collectionId, request.id)}
+      onClick={() => selectRequest(collectionId, fullPath)}
       className={cn(
         'flex items-center gap-2 w-full px-2 py-1 text-left text-sm rounded-md transition-colors',
         'hover:bg-accent/50',
@@ -73,12 +77,16 @@ function FolderNode({
   folder,
   collectionId,
   depth,
+  pathPrefix,
 }: {
   folder: Folder
   collectionId: string
   depth: number
+  pathPrefix: string
 }) {
   const [open, setOpen] = useState(false)
+  // Build this folder's path for its children
+  const folderPath = pathPrefix ? `${pathPrefix}/${folder.id}` : folder.id
 
   return (
     <div>
@@ -107,6 +115,7 @@ function FolderNode({
               folder={sf}
               collectionId={collectionId}
               depth={depth + 1}
+              pathPrefix={folderPath}
             />
           ))}
           {folder.requests?.map((r) => (
@@ -115,6 +124,7 @@ function FolderNode({
               request={r}
               collectionId={collectionId}
               depth={depth + 1}
+              pathPrefix={folderPath}
             />
           ))}
         </div>
@@ -168,6 +178,7 @@ function CollectionNode({ summary }: { summary: CollectionSummary }) {
               folder={f}
               collectionId={summary.id}
               depth={1}
+              pathPrefix=""
             />
           ))}
           {collection.requests?.map((r) => (
@@ -176,6 +187,7 @@ function CollectionNode({ summary }: { summary: CollectionSummary }) {
               request={r}
               collectionId={summary.id}
               depth={1}
+              pathPrefix=""
             />
           ))}
         </div>
