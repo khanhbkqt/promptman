@@ -101,6 +101,7 @@ Run HTTP requests, manage environments, and automate API workflows.`,
 	root.AddCommand(newInitCommand(flags))
 	root.AddCommand(newStatusCommand(flags))
 	root.AddCommand(newHistoryCommand(flags))
+	root.AddCommand(newStressCommand(flags))
 	root.AddCommand(newDaemonCommand())
 
 	return root
