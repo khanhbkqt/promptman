@@ -73,6 +73,7 @@ func runStart(projectDir string) error {
 	// 4. Registrars
 	reqReg := daemon.NewRequestRegistrar(engine)
 	envReg := daemon.NewEnvironmentRegistrar(envSvc)
+	collReg := daemon.NewCollectionRegistrar(collSvc)
 
 	// Stress test registrar — uses a stub executor for daemon-side runs.
 	// The daemon only needs to receive run requests; the real executor is
@@ -98,7 +99,7 @@ func runStart(projectDir string) error {
 	}))
 
 	// 6. Server
-	srv = daemon.NewServer(mgr, reqReg, envReg, stressReg)
+	srv = daemon.NewServer(mgr, reqReg, envReg, stressReg, collReg)
 	srv.WithHub(hub)
 
 	// Start manager
