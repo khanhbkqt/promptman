@@ -111,6 +111,18 @@ func (c *Client) Put(path string, body any) (*envelope.Envelope, error) {
 	return c.do(req)
 }
 
+// Delete sends a DELETE request to the daemon at the given API path (e.g. "/history").
+// Returns the parsed envelope.Envelope or a *CLIError on failure.
+func (c *Client) Delete(path string) (*envelope.Envelope, error) {
+	req, err := http.NewRequest(http.MethodDelete, c.baseURL+path, nil)
+	if err != nil {
+		return nil, ErrHTTPError.Wrap(fmt.Sprintf("building DELETE request for %s", path), err)
+	}
+	c.addAuth(req)
+
+	return c.do(req)
+}
+
 // addAuth sets the Authorization header with the daemon's Bearer token.
 func (c *Client) addAuth(req *http.Request) {
 	req.Header.Set("Authorization", "Bearer "+c.token)
