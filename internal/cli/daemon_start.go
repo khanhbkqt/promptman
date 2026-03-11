@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/khanhnguyen/promptman/internal/collection"
 	"github.com/khanhnguyen/promptman/internal/daemon"
 	"github.com/khanhnguyen/promptman/internal/environment"
+	"github.com/khanhnguyen/promptman/internal/history"
 	"github.com/khanhnguyen/promptman/internal/request"
 	"github.com/khanhnguyen/promptman/internal/ws"
 	"github.com/khanhnguyen/promptman/pkg/fsutil"
@@ -43,12 +45,24 @@ func runDaemonStart(projectDir string) error {
 	collSvc := collection.NewService(collRepo)
 	envSvc := environment.NewService(envRepo)
 
-	// 3. Engine
-	engine := request.NewEngine(collSvc, envSvc, request.WithCollectionGetter(collSvc))
+	// 2b. History service
+	histDir := filepath.Join(pDir, ".promptman", "history")
+	historySvc, err := history.NewService(histDir)
+	if err != nil {
+		return fmt.Errorf("creating history service: %w", err)
+	}
+
+	// 3. Engine — with history adapter for async append
+	histAdapter := history.NewAdapter(historySvc)
+	engine := request.NewEngine(collSvc, envSvc,
+		request.WithCollectionGetter(collSvc),
+		request.WithHistoryAppender(histAdapter),
+	)
 
 	// 4. Registrars
 	reqReg := daemon.NewRequestRegistrar(engine)
 	envReg := daemon.NewEnvironmentRegistrar(envSvc)
+	histReg := daemon.NewHistoryRegistrar(historySvc)
 
 	// 5. Infra
 	hub := ws.NewHub()
@@ -63,12 +77,13 @@ func runDaemonStart(projectDir string) error {
 	}))
 
 	// 6. Server
-	srv = daemon.NewServer(mgr, reqReg, envReg)
+	srv = daemon.NewServer(mgr, reqReg, envReg, histReg)
 	srv.WithHub(hub)
 
 	// Start manager
 	info, err := mgr.Start(pDir)
 	if err != nil {
+		historySvc.Close()
 		return fmt.Errorf("failed to start manager: %w", err)
 	}
 
@@ -76,6 +91,7 @@ func runDaemonStart(projectDir string) error {
 	addr := fmt.Sprintf("127.0.0.1:%d", info.Port)
 	if err := srv.Start(addr, info.Token); err != nil {
 		_ = mgr.Stop()
+		historySvc.Close()
 		return fmt.Errorf("failed to start server: %w", err)
 	}
 
@@ -91,6 +107,11 @@ func runDaemonStart(projectDir string) error {
 	// Gracefully shutdown the HTTP server and WS hub
 	if err := srv.Shutdown(); err != nil {
 		fmt.Fprintf(os.Stderr, "[daemon] Server shutdown error: %v\n", err)
+	}
+
+	// Flush history writer
+	if err := historySvc.Close(); err != nil {
+		fmt.Fprintf(os.Stderr, "[daemon] History close error: %v\n", err)
 	}
 
 	// Terminate the manager (which deletes the lock file)
