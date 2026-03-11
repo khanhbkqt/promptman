@@ -1,0 +1,43 @@
+name: GitHub Public API
+baseUrl: https://api.github.com
+defaults:
+  headers:
+    Accept: application/vnd.github.v3+json
+    User-Agent: PromptMan/0.1
+  timeout: 20
+
+requests:
+  - id: get-rate-limit
+    method: GET
+    path: /rate_limit
+
+folders:
+  - id: repos
+    name: Repositories
+    requests:
+      - id: search-repos
+        method: GET
+        path: /search/repositories?q=promptman&sort=stars
+
+      - id: get-repo
+        method: GET
+        path: /repos/golang/go
+
+      - id: list-repo-issues
+        method: GET
+        path: /repos/golang/go/issues?state=open&per_page=5
+
+      - id: list-repo-commits
+        method: GET
+        path: /repos/golang/go/commits?per_page=5
+
+  - id: users-api
+    name: Users
+    requests:
+      - id: get-user
+        method: GET
+        path: /users/octocat
+
+      - id: list-user-repos
+        method: GET
+        path: /users/octocat/repos?sort=updated&per_page=5

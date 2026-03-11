@@ -32,7 +32,7 @@ func UpgradeHandler(hub *Hub, token string) http.HandlerFunc {
 
 		// Upgrade HTTP → WebSocket.
 		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-			// No origin check needed — localhost only.
+			InsecureSkipVerify: true, // Allow cross-origin — daemon is localhost only.
 		})
 		if err != nil {
 			// websocket.Accept already wrote the HTTP error response.

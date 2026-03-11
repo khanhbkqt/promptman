@@ -1,0 +1,68 @@
+name: JSONPlaceholder API
+baseUrl: https://jsonplaceholder.typicode.com
+defaults:
+  headers:
+    Accept: application/json
+    Content-Type: application/json
+  timeout: 30
+
+requests:
+  - id: get-all-posts
+    method: GET
+    path: /posts
+
+  - id: get-post-by-id
+    method: GET
+    path: /posts/1
+
+  - id: create-post
+    method: POST
+    path: /posts
+    body:
+      type: json
+      content:
+        title: "Hello PromptMan"
+        body: "Testing from PromptMan Web UI"
+        userId: 1
+
+  - id: update-post
+    method: PUT
+    path: /posts/1
+    body:
+      type: json
+      content:
+        id: 1
+        title: "Updated Title"
+        body: "Updated body content"
+        userId: 1
+
+  - id: delete-post
+    method: DELETE
+    path: /posts/1
+
+folders:
+  - id: comments
+    name: Comments
+    requests:
+      - id: get-comments
+        method: GET
+        path: /posts/1/comments
+
+      - id: get-comment-by-id
+        method: GET
+        path: /comments/1
+
+  - id: users
+    name: Users
+    requests:
+      - id: get-all-users
+        method: GET
+        path: /users
+
+      - id: get-user-by-id
+        method: GET
+        path: /users/1
+
+      - id: get-user-posts
+        method: GET
+        path: /users/1/posts
