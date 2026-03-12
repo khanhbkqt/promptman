@@ -13,17 +13,22 @@ import {
 import { TestResultCard } from '@/components/test-results/test-result-card'
 import { useTestResults, useRunTests } from '@/hooks/use-tests'
 import { useCollections } from '@/hooks/use-collections'
+import { useEnvironmentStore } from '@/stores/environment-store'
 
 export function TestsPage() {
   const [selectedCollection, setSelectedCollection] = useState<string>('')
   const { data: results, isLoading, isError, error, refetch } = useTestResults()
   const { data: collections } = useCollections()
   const runTests = useRunTests()
+  const activeEnv = useEnvironmentStore((s) => s.activeEnv)
 
   const handleRunTests = useCallback(() => {
     if (!selectedCollection) return
-    runTests.mutate({ collection: selectedCollection })
-  }, [selectedCollection, runTests])
+    runTests.mutate({
+      collection: selectedCollection,
+      ...(activeEnv ? { env: activeEnv } : {}),
+    })
+  }, [selectedCollection, runTests, activeEnv])
 
   // Compute aggregate stats
   const stats = results?.reduce(
