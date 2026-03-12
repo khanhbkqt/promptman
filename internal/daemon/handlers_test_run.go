@@ -91,8 +91,14 @@ func (tr *TestRunRegistrar) handleRun() http.HandlerFunc {
 
 		result, err := tr.runner.RunSuite(ctx, req.Collection, req.Env, suiteTimeout)
 		if err != nil {
+			// Use the domain error's code for proper HTTP status mapping.
+			if de, ok := err.(*testing.DomainError); ok {
+				status := envelope.HTTPStatusForCode(de.Code)
+				envelope.WriteError(w, status, de.Code, de.Message)
+				return
+			}
 			envelope.WriteError(w, http.StatusInternalServerError,
-				"TEST_EXECUTION_ERROR", "test execution failed: "+err.Error())
+				envelope.CodeTestExecutionError, "test execution failed: "+err.Error())
 			return
 		}
 

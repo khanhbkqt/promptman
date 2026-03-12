@@ -17,6 +17,9 @@ var (
 
 	// ErrScriptParse is returned when a test script contains a JavaScript syntax error.
 	ErrScriptParse = &DomainError{Code: envelope.CodeScriptParse, Message: "script parse error"}
+
+	// ErrTestFileNotFound is returned when the test file for a collection does not exist.
+	ErrTestFileNotFound = &DomainError{Code: envelope.CodeTestFileNotFound, Message: "test file not found"}
 )
 
 // DomainError is a structured error carrying an envelope-compatible error code.

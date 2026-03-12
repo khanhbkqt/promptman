@@ -1,0 +1,6 @@
+name: staging
+variables:
+    apiVersion: v2
+    baseUrl: https://staging.example.com
+secrets:
+    apiKey: staging-secret-key

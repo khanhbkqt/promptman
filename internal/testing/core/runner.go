@@ -2,7 +2,9 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/dop251/goja"
@@ -76,6 +78,9 @@ func (r *Runner) RunSuite(ctx context.Context, collID, env string, opts *TestOpt
 	// Load test script.
 	source, err := r.loader.Load(collID)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, testing.ErrTestFileNotFound.Wrapf("no test file for collection %s", collID)
+		}
 		return nil, testing.ErrScriptParse.Wrapf("loading test file for %s: %v", collID, err)
 	}
 
@@ -185,6 +190,9 @@ func (r *Runner) RunSingle(ctx context.Context, collID, reqID, env string) (*tes
 	// Load test script.
 	source, err := r.loader.Load(collID)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, testing.ErrTestFileNotFound.Wrapf("no test file for collection %s", collID)
+		}
 		return nil, testing.ErrScriptParse.Wrapf("loading test file for %s: %v", collID, err)
 	}
 

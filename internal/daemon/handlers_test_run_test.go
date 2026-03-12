@@ -130,6 +130,27 @@ func TestHandleRun_RunnerError(t *testing.T) {
 	}
 }
 
+func TestHandleRun_TestFileNotFound(t *testing.T) {
+	runner := &mockSuiteRunner{
+		err: tmod.ErrTestFileNotFound.Wrapf("no test file for collection %s", "users"),
+	}
+	store := NewResultStore(5)
+	reg := NewTestRunRegistrar(runner, nil, store)
+
+	mux := http.NewServeMux()
+	reg.RegisterRoutes(mux, "/api/v1/")
+
+	body := `{"collection":"users"}`
+	req := httptest.NewRequest("POST", "/api/v1/tests/run", bytes.NewBufferString(body))
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d; want %d\n%s", rec.Code, http.StatusUnprocessableEntity, rec.Body.String())
+	}
+}
+
 func TestHandleRun_MinimalFormat(t *testing.T) {
 	reg := newTestRunRegistrar(makeResult(), nil)
 

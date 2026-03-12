@@ -1,104 +1,89 @@
 name: HTTPBin — Echo & Debug
 baseUrl: https://httpbin.org
 defaults:
-  headers:
-    Accept: application/json
-  timeout: 30000
-
+    headers:
+        Accept: application/json
+    timeout: 30000
 requests:
-  - id: simple-get
-    method: GET
-    path: /get
-    headers:
-      X-Custom-Header: promptman-test
-
-  - id: post-json
-    method: POST
-    path: /post
-    headers:
-      Content-Type: application/json
-    body:
-      type: json
-      content:
-        message: "Hello from PromptMan"
-        timestamp: "{{now}}"
-
-  - id: put-data
-    method: PUT
-    path: /put
-    body:
-      type: json
-      content:
-        updated: true
-        field: "value"
-
-  - id: patch-data
-    method: PATCH
-    path: /patch
-    body:
-      type: json
-      content:
-        partial: true
-
-  - id: delete-resource
-    method: DELETE
-    path: /delete
-
+    - id: simple-get
+      method: GET
+      path: /get
+      headers:
+        X-Custom-Header: promptman-test
+    - id: post-json
+      method: POST
+      path: /post
+      headers:
+        Content-Type: application/json
+      body:
+        type: json
+        content:
+            message: Hello from PromptMan
+            timestamp: '{{now}}'
+    - id: put-data
+      method: PUT
+      path: /put
+      body:
+        type: json
+        content:
+            field: value
+            updated: true
+    - id: patch-data
+      method: PATCH
+      path: /patch
+      body:
+        type: json
+        content:
+            partial: true
+    - id: delete-resource
+      method: DELETE
+      path: /delete
 folders:
-  - id: status-codes
-    name: Status Codes
-    requests:
-      - id: ok-200
-        method: GET
-        path: /status/200
-
-      - id: created-201
-        method: GET
-        path: /status/201
-
-      - id: not-found-404
-        method: GET
-        path: /status/404
-
-      - id: server-error-500
-        method: GET
-        path: /status/500
-
-  - id: auth-tests
-    name: Auth Testing
-    requests:
-      - id: basic-auth
-        method: GET
-        path: /basic-auth/user/passwd
-        auth:
-          type: basic
-          basic:
-            username: user
-            password: passwd
-
-      - id: bearer-auth
-        method: GET
-        path: /bearer
-        auth:
-          type: bearer
-          bearer:
-            token: my-secret-token
-
-  - id: response-formats
-    name: Response Formats
-    requests:
-      - id: json-response
-        method: GET
-        path: /json
-
-      - id: html-response
-        method: GET
-        path: /html
-
-      - id: xml-response
-        method: GET
-        path: /xml
-
-      - id: delayed-response
-        method: GET
-        path: /delay/2
+    - id: status-codes
+      name: Status Codes
+      requests:
+        - id: ok-200
+          method: GET
+          path: /status/200
+        - id: created-201
+          method: GET
+          path: /status/201
+        - id: not-found-404
+          method: GET
+          path: /status/404
+        - id: server-error-500
+          method: GET
+          path: /status/500
+    - id: auth-tests
+      name: Auth Testing
+      requests:
+        - id: basic-auth
+          method: GET
+          path: /basic-auth/user/passwd
+          auth:
+            type: basic
+            basic:
+                username: user
+                password: passwd
+        - id: bearer-auth
+          method: GET
+          path: /bearer
+          auth:
+            type: bearer
+            bearer:
+                token: my-secret-token
+    - id: response-formats
+      name: Response Formats
+      requests:
+        - id: json-response
+          method: GET
+          path: /json
+        - id: html-response
+          method: GET
+          path: /html
+        - id: xml-response
+          method: GET
+          path: /xml
+        - id: delayed-response
+          method: GET
+          path: /delay/2

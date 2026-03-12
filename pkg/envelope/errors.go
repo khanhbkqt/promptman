@@ -24,6 +24,7 @@ const (
 
 	// Test execution errors (M4)
 	CodeTestExecutionError = "TEST_EXECUTION_ERROR"
+	CodeTestFileNotFound   = "TEST_FILE_NOT_FOUND"
 	CodeSandboxViolation   = "SANDBOX_VIOLATION"
 	CodeTestTimeout        = "TEST_TIMEOUT"
 	CodeScriptParse        = "SCRIPT_PARSE"
@@ -82,6 +83,8 @@ func HTTPStatusForCode(code string) int {
 	case CodeTestExecutionError, CodeInternalError, CodeSecretResolveFailed,
 		CodeHistoryCorrupted, CodeHistoryWriteFailed:
 		return http.StatusInternalServerError
+	case CodeTestFileNotFound:
+		return http.StatusUnprocessableEntity
 	case CodeDaemonBusy:
 		return http.StatusTooManyRequests
 	case CodeDaemonAlreadyRunning:
